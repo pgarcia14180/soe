@@ -1,0 +1,3 @@
+"""
+Identity tests - init file.
+"""

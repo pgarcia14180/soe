@@ -1,0 +1,374 @@
+{# SOE Guide: Chapter 9 - Workflows Ecosystem #}
+# SOE Guide: Chapter 9 - The Workflows Ecosystem
+
+## Understanding the Big Picture
+
+Before diving deeper into SOE, it's important to understand **why** workflows are structured the way they are. This chapter explains the ecosystem—how workflows relate to each other, how data persists, and how you can build sophisticated multi-workflow systems.
+
+---
+
+## Combined Config: The Recommended Pattern
+
+The most powerful way to configure SOE is with **combined config**—a single structure containing workflows, context schemas, and identities:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_ecosystem.py', 'combined_simple_config') }}
+```
+
+### Why Combined Config?
+
+1. **Single source of truth**: All configuration in one place
+2. **Automatic setup**: Schemas and identities are saved to backends automatically
+3. **Keyed by execution**: Child workflows can access parent's schemas and identities
+4. **Clear structure**: Easy to understand what your workflow ecosystem contains
+
+### Combined Config Sections
+
+| Section | Purpose | Required |
+|---------|---------|----------|
+| `workflows` | Workflow definitions (nodes, signals) | Yes |
+| `context_schema` | Field type validation for LLM outputs | No |
+| `identities` | System prompts for LLM/Agent nodes | No |
+
+---
+
+## Multi-Workflow Ecosystems
+
+When you call `orchestrate()`, you pass a **config**. This config can contain multiple workflow definitions:
+
+```python
+execution_id = orchestrate(
+    config=my_config,                      # Contains MULTIPLE workflows
+    initial_workflow_name="main_workflow", # Which one to start
+    initial_signals=["START"],
+    initial_context={...},
+    backends=backends,
+    broadcast_signals_caller=broadcast,
+)
+```
+
+### Why Multiple Workflows?
+
+The config is your **ecosystem**. Workflows can:
+
+1. **Spawn children** — One workflow triggers another via child nodes
+2. **Share definitions** — Common sub-workflows reused across your system
+3. **Run in parallel** — Multiple child workflows executing simultaneously
+4. **Share schemas and identities** — Via `main_execution_id` keying
+
+### Example: Full Ecosystem Config
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_ecosystem.py', 'combined_ecosystem_config') }}
+```
+
+In this example:
+- `main_workflow` is the entry point that routes to specialized workflows
+- `text_workflow` and `image_workflow` are child workflows
+- Both child workflows share identities defined in the config
+- Schema validation ensures consistent data structures
+
+---
+
+## Data vs Execution: A Critical Distinction
+
+SOE separates two concerns:
+
+| Concept | What It Is | Where It Lives |
+|---------|------------|----------------|
+| **Workflow Definition** | The YAML describing nodes and signals | `WorkflowBackend` |
+| **Workflow Execution** | The running state of a specific run | `ContextBackend` |
+
+### Workflow Definitions Are Data
+
+Your workflow YAML is **just data**. It can be:
+
+- Stored in files, databases, or version control
+- Loaded dynamically at runtime
+- Modified without restarting your application
+- Versioned using any strategy you prefer
+
+```python
+# Load from file
+with open("workflows/my_workflow.yaml") as f:
+    workflow_yaml = f.read()
+
+# Load from database
+workflow_yaml = db.get_workflow("my_workflow", version="2.1.0")
+
+# Pass to orchestrate
+orchestrate(config=workflow_yaml, ...)
+```
+
+### Executions Are Immutable
+
+When you start an orchestration, the workflow definition is **captured** and stored in the `WorkflowBackend` for that execution. This means:
+
+1. **No version conflicts**: If you update your workflow, existing executions continue with their original definition
+2. **Natural versioning**: Each execution remembers which workflow version it started with
+3. **Audit trail**: You can inspect what any historical execution ran
+
+```
+Execution 001 → Uses workflow v1.0 (stored in workflow backend)
+Execution 002 → Uses workflow v1.1 (stored in workflow backend)
+Execution 003 → Uses workflow v2.0 (stored in workflow backend)
+
+↓ You update the workflow file ↓
+
+Execution 001 → Still uses v1.0 (continues unchanged)
+Execution 004 → Uses new version
+```
+
+### Why This Matters
+
+This architecture means:
+
+- **No downtime migrations**: Update workflows without stopping running processes
+- **Rollback safety**: Bad workflow version? New executions use the old; existing continue
+- **Debugging**: Inspect exactly what workflow an execution used, even months later
+
+---
+
+## Parallel Workflow Execution
+
+Child workflows can run **in parallel**. When a router emits multiple signals and each triggers a child node, all children start simultaneously (in infrastructure that supports it):
+
+### Fan-Out Pattern with Combined Config
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_ecosystem.py', 'combined_parallel_config') }}
+```
+
+This combined config includes:
+- **workflows**: Orchestrator that fans out to workers
+- **context_schema**: Validates data chunks and results
+- **identities**: Specialized prompts for processor and aggregator
+
+### How Parallel Execution Works
+
+```
+START
+  │
+  ▼
+┌─────────┐
+│ FanOut  │
+│(Router) │
+└────┬────┘
+     │
+     ├──────────────┬──────────────┐
+     ▼              ▼              ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐
+│Worker A │   │Worker B │   │Worker C │
+│ (Child) │   │ (Child) │   │ (Child) │
+└────┬────┘   └────┬────┘   └────┬────┘
+     │              │              │
+     └──────────────┴──────────────┘
+                    │
+                    ▼
+              ┌───────────┐
+              │ Aggregate │
+              │  (Router) │
+              └───────────┘
+```
+
+Each worker:
+- Runs independently (potentially on different infrastructure)
+- Updates its own context (isolated)
+- Propagates results back via `context_updates_to_parent`
+
+---
+
+## Fire-and-Forget vs Callbacks
+
+Child workflows offer two patterns:
+
+### Fire-and-Forget
+
+Start a child and continue immediately—don't wait for completion:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_ecosystem.py', 'fire_and_forget') }}
+```
+
+**Use cases:**
+- Background processing
+- Logging/analytics
+- Notifications that don't affect the main flow
+
+### Callback (Wait for Child)
+
+Wait for specific signals from the child before continuing:
+
+```yaml
+# From child node configuration
+signals_to_parent: [CHILD_DONE]  # Wait for this signal
+context_updates_to_parent: [result]  # Get this data back
+```
+
+**Use cases:**
+- Sequential processing
+- When parent needs child's result
+- Validation before proceeding
+
+---
+
+## External Triggers and Continuation
+
+Workflows don't have to complete in one `orchestrate()` call. When there are no more signals to process, the execution simply **stops**. It can be resumed at any time by sending new signals:
+
+### The Pattern
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_ecosystem.py', 'external_trigger') }}
+```
+
+### How It Works
+
+1. Workflow starts, processes available signals, then stops (no more matching triggers)
+2. Returns `execution_id` to the caller
+3. Later: external system (human, API, event) sends a signal using that ID
+4. Workflow resumes and continues processing
+
+```python
+# Start the workflow
+execution_id = orchestrate(
+    config=waiting_workflow,
+    initial_workflow_name="waiting_workflow",
+    initial_signals=["START"],
+    ...
+)
+# Execution stops after emitting WAITING_FOR_APPROVAL (no nodes listen for it yet)
+
+# Later... external system sends approval
+broadcast_signals(
+    execution_id=execution_id,
+    signals=["APPROVED"],
+    backends=backends,
+)
+# Workflow resumes and runs to completion
+```
+
+**Key insight**: There's no "waiting state" or "paused" status. The execution is simply stopped. Anyone with the `execution_id` can send a signal to trigger it again—even the original workflow you created months ago.
+
+### Use Cases
+
+- Human-in-the-loop approval
+- External API callbacks (webhooks)
+- Long-running processes that span days/weeks
+- Event-driven architectures
+- Triggering old executions with new data
+
+---
+
+## Versioning Strategies
+
+SOE doesn't mandate a versioning strategy—it gives you the **primitives** to implement any strategy:
+
+### Strategy 1: Context-Based Routing
+
+Route to different workflow versions based on context:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_ecosystem.py', 'version_routing') }}
+```
+
+### Strategy 2: Natural Versioning (No Migration)
+
+Since execution state includes the workflow definition:
+
+1. **New version**: Just deploy new workflow YAML
+2. **Existing executions**: Continue with their captured version
+3. **New executions**: Use the new version
+
+No migration needed—versions coexist naturally.
+
+### Strategy 3: Context Migration
+
+For executions that need to switch to a new workflow version:
+
+1. **Read old context**: Get the execution's current state
+2. **Transform context**: Map old fields to new schema
+3. **Start new execution**: With the new workflow and migrated context
+4. **Mark old execution**: Complete or archive it
+
+```python
+# Migrate an execution to a new workflow version
+old_context = backends.context.get_context(old_execution_id)
+
+migrated_context = migrate_context_v1_to_v2(old_context)
+
+new_execution_id = orchestrate(
+    config=new_workflow_v2,
+    initial_workflow_name="main_workflow",
+    initial_signals=["RESUME"],  # Custom signal for migrations
+    initial_context=migrated_context,
+    backends=backends,
+    broadcast_signals_caller=broadcast,
+)
+```
+
+---
+
+## Execution IDs: The Key to Everything
+
+Every orchestration returns an `execution_id`. This ID is:
+
+- **Unique**: Identifies this specific execution
+- **Persistent**: Stored in the context backend
+- **The key**: Used to send signals, read context, continue execution
+
+### Sending Signals to Existing Executions
+
+```python
+# External system sends a signal
+broadcast_signals(
+    execution_id="abc-123-def",
+    signals=["USER_APPROVED"],
+    backends=backends,
+)
+```
+
+### Reading Execution State
+
+```python
+# Inspect an execution
+context = backends.context.get_context("abc-123-def")
+print(context["current_step"])
+print(context["__operational__"]["active_signals"])
+```
+
+### Cross-Execution Communication
+
+One execution can trigger signals in another:
+
+```python
+# In a tool function
+def notify_other_workflow(other_execution_id: str) -> dict:
+    broadcast_signals(
+        execution_id=other_execution_id,
+        signals=["EXTERNAL_EVENT"],
+        backends=global_backends,
+    )
+    return {"notified": True}
+```
+
+---
+
+## Key Takeaways
+
+1. **Workflows are data** — Store, version, and compose them freely
+2. **Executions are immutable** — Each run captures its workflow definition in the workflow backend
+3. **Multiple workflows compose** — Build ecosystems, not monoliths
+4. **Parallel is natural** — Fan-out to children for concurrent processing
+5. **Executions stop, not pause** — Send signals anytime to continue any execution
+6. **Execution IDs connect everything** — The key to cross-workflow communication
+
+This ecosystem approach means you can:
+- Deploy updates without breaking running processes
+- Build sophisticated multi-workflow systems
+- Handle long-running, event-driven processes
+- Scale from simple scripts to enterprise orchestration
+
+## Next Steps
+
+Now that you understand the workflows ecosystem, let's explore [Infrastructure](guide_10_infrastructure.md) for custom backends and production deployments →

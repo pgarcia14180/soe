@@ -1,0 +1,117 @@
+{# SOE Guide: Chapter 5 - Agent Nodes #}
+# SOE Guide: Chapter 5 - Agent Nodes
+
+## Introduction to Agent Nodes
+
+The **Agent Node** is a convenience wrapper that encapsulates the **ReAct pattern** (Reasoning + Acting) into a single, configurable component.
+
+In the previous chapter, you learned how to build custom agent loops using Tool, LLM, and Router nodes. The Agent Node does the same thing—but packaged for common use cases where you want a "hands-off" tool-using agent.
+
+### Why Use Agent Nodes?
+
+| Building Custom (Ch. 4) | Using Agent Node |
+|------------------------|------------------|
+| Full control over each step | Quick to configure |
+| Custom reasoning patterns | Standard ReAct loop |
+| Explicit debugging points | Batteries included |
+| Any architecture you want | Opinionated but effective |
+
+**Use Agent Node when**: You need a straightforward tool-using agent and don't need custom reasoning patterns.
+
+**Use custom workflows when**: You need chain-of-thought, metacognition, voting, or other advanced patterns.
+
+**Note**: Agent nodes can also be used for other patterns (routing, summarization, etc.), but they involve more LLM calls than specialized nodes. Use the right node type for your use case.
+
+### The Agent Loop
+
+The Agent Node runs this loop internally:
+
+1.  **Router Stage**: The agent decides what to do (Call a Tool or Finish)
+2.  **Parameter Stage**: If calling a tool, it generates the arguments
+3.  **Execution Stage**: The tool is executed
+4.  **Loop**: The results are fed back into the history, and the agent decides again
+
+This is exactly what you built manually in Chapter 4's "Custom ReAct Loop" pattern—but as a single node.
+
+### Multiple Tool Calls
+
+The agent can call multiple tools in sequence during a single node execution:
+
+1. Agent decides to call Tool A → executes → sees result
+2. Agent decides to call Tool B → executes → sees result
+3. Agent decides to call Tool A again → executes → sees result
+4. Agent decides to Finish
+
+**Exhaustive tool calling**: The agent will keep calling tools until it decides to finish. There's no hard limit on tool calls—the agent uses its judgment. To prevent runaway loops, use operational limits (see [Operational Features](advanced_patterns/operational.md)).
+
+## Your First Agent: The Calculator
+
+Let's look at a simple agent that has access to a tool.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_agent.py', 'agent_simple') }}
+```
+
+### How It Works
+
+1.  **`tools`**: We give the agent a list of tools (e.g., `[calculator]`).
+2.  **The Loop**:
+    *   The agent sees the prompt: "Solve... {% raw %}{{ context.problem }}{% endraw %}"
+    *   It decides to call `calculator(5, 3, 'add')`.
+    *   The tool returns `8`.
+    *   The agent sees the result and decides to **Finish**.
+3.  **Output**: The final answer is stored in `context.result`.
+
+## Advanced Configuration: Multiple Tools
+
+Agents can handle complex tasks with multiple tools.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_agent.py', 'agent_complex') }}
+```
+
+### Robustness Features
+
+-   **Tool Selection**: The agent intelligently chooses between `search_web` and `summarize_text` based on the goal.
+-   **Error Recovery**: If a tool fails (throws an exception), the agent sees the error and can try again or try a different strategy.
+
+## Agent Signal Selection
+
+Like LLM nodes, Agent nodes can select which signal to emit based on their analysis:
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_agent.py', 'agent_signal_selection') }}
+```
+
+The agent completes its task, then the signal selection works the same as LLM nodes:
+- **Plain text conditions**: LLM chooses semantically
+- **Jinja conditions**: Evaluated programmatically
+
+## When to Choose Agent vs Custom Workflow
+
+### Use Agent Node For:
+
+- **Quick prototyping**: Get a tool-using agent running fast
+- **Standard tasks**: Research, calculation, data gathering
+- **Simple tool orchestration**: When tool selection is the main complexity
+
+### Build Custom Workflows For:
+
+- **Chain-of-thought reasoning**: Explicit step-by-step thinking
+- **Metacognition**: Self-review and refinement loops
+- **Parallel/voting patterns**: Multiple analyses combined
+- **Hybrid logic**: Mixing deterministic gates with AI
+- **Audit requirements**: When you need to log/inspect each decision
+- **Custom termination conditions**: Beyond simple "finish" detection
+
+Remember: The Agent Node is **syntactic sugar** for a common pattern. Everything it does, you can build yourself with the three core node types.
+
+## Next Steps
+
+Now that you understand both custom workflows and the Agent Node, let's explore [Schemas](guide_06_schema.md) for structured LLM output →

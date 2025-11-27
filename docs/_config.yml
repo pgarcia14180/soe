@@ -1,0 +1,10 @@
+title: SOE - Signal-driven Orchestration Engine
+description: Infrastructure-agnostic AI workflow orchestration
+theme: jekyll-theme-minimal
+markdown: GFM
+highlighter: rouge
+
+# Navigation structure
+header_pages:
+  - index.md
+  - guide_00_getting_started.md

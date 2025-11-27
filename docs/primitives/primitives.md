@@ -1,0 +1,331 @@
+# SOE Concepts: The 7 Primitives
+
+SOE is built on **7 core primitives**. Understanding these gives you complete mastery of the system.
+
+| Primitive | Purpose |
+|-----------|---------|
+| **Signals** | Communication between nodes |
+| **Context** | Shared state dictionary |
+| **Workflows** | YAML definitions of nodes |
+| **Backends** | Pluggable storage |
+| **Nodes** | Execution units |
+| **Identities** | System prompts for LLMs |
+| **Context Schema** | Type validation for outputs |
+
+---
+
+## 1. Signals
+
+**What:** Named events that flow through the system.
+
+**Purpose:** Communication between nodes. Signals are the *only* way nodes interact.
+
+
+```yaml
+event_emissions:
+  - signal_name: USER_VALIDATED
+    condition: "{{ context.user_id is defined }}"
+```
+
+
+**Key Properties:**
+- Signals are strings (e.g., `START`, `COMPLETE`, `ERROR`)
+- Multiple signals can be emitted at once
+- Signals trigger nodes via `event_triggers`
+- Signals are stateless—they carry no payload (use Context for data)
+
+**Examples:**
+- `START` — Initial trigger for a workflow
+- `TOOL_SUCCESS` — A tool completed successfully
+- `AGENT_NEEDS_INPUT` — Agent requires user interaction
+
+---
+
+## 2. Context
+
+**What:** A shared dictionary of data for the current execution.
+
+**Purpose:** State management. All nodes read from and write to Context.
+
+```python
+context = backends.context.get_context(execution_id)
+# {"user_id": "123", "validated": True, "result": "Hello!"}
+```
+
+**Key Properties:**
+- One Context per execution ID
+- Persisted via `ContextBackend`
+- LLM/Agent/Tool nodes can update Context via `output_field`
+- Jinja2 templates access Context: `{{ context.user_id }}`
+
+**Examples:**
+```yaml
+# LLM/Agent nodes store results via output_field
+output_field: result
+```
+
+---
+
+## 3. Workflows
+
+**What:** YAML definitions that describe node configurations and their relationships.
+
+**Purpose:** The blueprint for orchestration. Defines *what* happens, not *how*.
+
+
+```yaml
+my_workflow:
+  ValidateInput:
+    node_type: router
+    event_triggers: [START]
+    event_emissions:
+      - signal_name: VALID
+        condition: "{{ context.data is defined }}"
+
+  ProcessData:
+    node_type: tool
+    event_triggers: [VALID]
+    tool_name: process
+    input_fields: [data]
+    output_field: result
+```
+
+
+**Key Properties:**
+- Multiple workflows can exist in one registry
+- Workflows are parsed at runtime (Jinja2 + YAML)
+- Workflows are portable—same YAML runs on any infrastructure
+- Child nodes can spawn sub-workflows
+
+---
+
+## 4. Backends
+
+**What:** Pluggable persistence implementations.
+
+**Purpose:** Store state, workflows, telemetry, and history. Infrastructure-agnostic.
+
+```python
+from soe.local_backends import create_in_memory_backends
+
+backends = create_in_memory_backends()
+```
+
+**The 5 Backend Types:**
+
+| Backend | Interface | Purpose |
+|---------|-----------|---------|
+| `context` | `ContextBackend` | Execution state |
+| `workflow` | `WorkflowBackend` | Workflow definitions |
+| `telemetry` | `TelemetryBackend` | Logs and events |
+| `conversation_history` | `ConversationHistoryBackend` | LLM chat history |
+| `schema` | `SchemaBackend` | Context validation schemas |
+
+**Key Properties:**
+- Follow Python `Protocol` (structural typing)
+- Built-in: In-Memory, Local Files
+- Custom: PostgreSQL, DynamoDB, Redis, etc.
+
+See [Chapter 10: Infrastructure](../guide_10_infrastructure.md) for implementation details.
+
+---
+
+## 5. Nodes
+
+**What:** Execution units that perform work when triggered by signals.
+
+**Purpose:** The building blocks of workflows. Each node type has a specific role.
+
+**The 3 Core Node Types:**
+
+| Node Type | Purpose | Does Work? |
+|-----------|---------|-----------|
+| `tool` | Execute Python functions | ✅ Yes |
+| `llm` | Generate text via LLM | ✅ Yes |
+| `router` | Evaluate conditions, emit signals | ❌ Pure routing |
+
+With these three core nodes, you can build any workflow pattern—including custom agent loops.
+
+**Additional Node Types (Convenience):**
+
+| Node Type | Purpose | Description |
+|-----------|---------|-------------|
+| `agent` | Autonomous reasoning with tools | Built-in ReAct loop |
+| `child` | Spawn sub-workflows | Sub-orchestration |
+
+**Key Properties:**
+- Nodes are stateless—all state lives in Context
+- Nodes communicate only via Signals
+- Nodes are created by factory functions
+- Multiple instances of the same type can exist
+
+```yaml
+ValidateUser:
+  node_type: router
+  event_triggers: [START]
+  ...
+
+ValidatePayment:
+  node_type: router
+  event_triggers: [USER_VALID]
+  ...
+```
+
+---
+
+## 6. Callers
+
+**What:** Functions that control how signals are broadcast.
+
+**Purpose:** The communication layer. Enables distribution without changing workflows.
+
+```python
+def broadcast_signals_caller(id: str, signals: List[str]) -> None:
+    broadcast_signals(id, signals, nodes, backends)
+```
+
+**Key Properties:**
+- The default caller is synchronous and in-process
+- Custom callers enable distribution (HTTP, Lambda, SQS, etc.)
+- Callers wrap `broadcast_signals` with additional behavior
+- The same workflow works with any caller
+
+**Distribution Examples:**
+- **HTTP Caller:** Signals become webhook POSTs
+- **Lambda Caller:** Signals trigger AWS Lambda functions
+- **SQS Caller:** Signals become queue messages
+
+See [Chapter 10: Infrastructure](../guide_10_infrastructure.md) for implementation details.
+
+---
+
+## 6. Identities
+
+**What:** System prompts for LLM and Agent nodes.
+
+**Purpose:** Define roles and consistent behavior for LLM calls without repeating in every prompt.
+
+```yaml
+identities:
+  analyst: |
+    You are a senior data analyst. Be thorough and precise.
+    Always cite sources when making claims.
+  reviewer: |
+    You are a code reviewer. Focus on correctness and maintainability.
+```
+
+**Key Properties:**
+- Defined in config YAML alongside workflows
+- Referenced by `identity` field in LLM/Agent nodes
+- Stored by `IdentityBackend`
+- Keyed by `main_execution_id` (child workflows access parent's identities)
+- Removes the need to specify role in every prompt
+
+**Usage in Nodes:**
+```yaml
+Analyzer:
+  node_type: llm
+  identity: analyst  # References identity defined above
+  prompt: "Analyze: {{ context.input }}"
+```
+
+See [Chapter 7: Identity](../guide_07_identity.md) for details.
+
+---
+
+## 7. Context Schema
+
+**What:** Type definitions for context fields.
+
+**Purpose:** Validate LLM output matches expected types before downstream use.
+
+```yaml
+context_schema:
+  summary:
+    type: string
+    description: A one-sentence summary
+  result:
+    type: object
+    description: The workflow result
+```
+
+**Key Properties:**
+- Defined in config YAML alongside workflows
+- Validates LLM `output_field` values
+- Stored by `ContextSchemaBackend`
+- Keyed by `main_execution_id` (child workflows access parent's schema)
+- Removes the need to specify output format in every prompt
+
+**Available Types:**
+| Type | Python Type |
+|------|-------------|
+| `string` | `str` |
+| `integer` | `int` |
+| `number` | `float` |
+| `boolean` | `bool` |
+| `object` | `dict` |
+| `list` | `list` |
+
+See [Chapter 6: Context Schema](../guide_06_schema.md) for details.
+
+---
+
+## How Primitives Interact
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CONFIG (YAML)                          │
+│  workflows, identities, context_schema                      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     ORCHESTRATION                           │
+│  Parses config, initializes backends, broadcasts signals    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        SIGNALS                              │
+│  Flow through the system: START → VALID → COMPLETE          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                         NODES                               │
+│  Triggered by signals, read/write Context, emit signals     │
+│  router | tool | llm | agent | child                        │
+│  LLM/Agent nodes use: Identities + Context Schema           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        CONTEXT                              │
+│  Shared state: {"user": "alice", "result": "..."}           │
+│  Accessible via Jinja: {{ context.user }}                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       BACKENDS                              │
+│  context | workflow | identity | context_schema | telemetry │
+└─────────────────────────────────────────────────────────────┘
+```
+
+See [Chapter 9: Ecosystem](../guide_09_ecosystem.md) for multi-workflow patterns.
+
+---
+
+## Summary Table
+
+| Primitive | What | Where Defined | Stored By |
+|-----------|------|---------------|-----------|
+| **Signals** | Named events | YAML `event_emissions` | — (transient) |
+| **Context** | Shared state | Runtime | `ContextBackend` |
+| **Workflows** | Node blueprints | YAML files | `WorkflowBackend` |
+| **Backends** | Persistence | Python classes | — |
+| **Nodes** | Execution units | YAML + factories | — |
+| **Identities** | System prompts | Config YAML | `IdentityBackend` |
+| **Context Schema** | Type validation | Config YAML | `ContextSchemaBackend` |
+
+Master these 7 primitives, and you can build anything with SOE.

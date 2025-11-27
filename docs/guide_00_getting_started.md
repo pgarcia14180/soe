@@ -1,0 +1,398 @@
+# SOE Guide: Getting Started
+
+## What is SOE?
+
+SOE (Signal-driven Orchestration Engine) is a Python library for building workflows through **signal-based orchestration**. Workflows are defined in YAML and executed by nodes that communicate through signals.
+
+**If you've already seen the [README](../README.md)**, this guide expands on the quick start with explanations and guidance to other guides.
+
+---
+
+## The 7 Primitives
+
+SOE is built on **7 core concepts**. Understanding these gives you complete control:
+
+| Primitive | What It Is | Quick Example |
+|-----------|------------|---------------|
+| **Signals** | Named events for node communication | `START`, `DONE`, `ERROR` |
+| **Context** | Shared state dictionary (with Jinja access) | `{{ context.user_id }}` |
+| **Workflows** | YAML definitions of nodes and their relationships | See below |
+| **Backends** | Pluggable storage implementations | PostgreSQL, DynamoDB, in-memory |
+| **Nodes** | Execution units (router, llm, tool, agent, child) | `node_type: llm` |
+| **Identities** | System prompts for LLM/Agent nodes | Optional role definitions |
+| **Context Schema** | Type validation for LLM outputs | Optional field definitions |
+
+**Key insight**: Context is accessible via Jinja2 in conditions and prompts. This makes workflows readable and debuggable.
+
+For detailed coverage, see [The 7 Primitives](primitives/primitives.md).
+
+---
+
+## Signal Types
+
+SOE supports different signal emission patterns:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Conditional** | Emitted when Jinja condition is true | `condition: "{{ context.valid }}"` |
+| **Unconditional** | Always emitted (no condition) | `signal_name: DONE` |
+| **Semantic** | LLM selects signal (for testing/prototyping) | `signal_name: APPROVE` with LLM choice |
+
+---
+
+## Key Concept: Synchronous Execution
+
+SOE executes **synchronously** within a single Python process. This is intentional:
+
+```python
+# This is how SOE works - synchronous, blocking execution
+execution_id = orchestrate(
+    config=my_workflow,
+    initial_workflow_name="example_workflow",
+    initial_signals=["START"],
+    initial_context={"user": "alice"},
+    backends=backends,
+    broadcast_signals_caller=broadcast_signals_caller,
+)
+# When this returns, the entire workflow has completed
+```
+
+**Why synchronous?**
+
+1. **Simplicity** — No async/await complexity, no event loop management
+2. **Predictability** — Easy to debug, test, and reason about
+3. **Portability** — The same workflow runs locally, in Lambda, in Jenkins, anywhere
+
+**But what about distribution?**
+
+The synchronous nature is about *how a single workflow executes*. Distribution happens at the **caller level**:
+
+- Replace `broadcast_signals_caller` with an HTTP webhook → signals trigger remote services
+- Replace `broadcast_signals_caller` with an SQS publisher → signals become queue messages
+- Replace backends with PostgreSQL/DynamoDB → state becomes distributed
+
+Your workflow YAML stays exactly the same. See [Chapter 8: Custom Infrastructure](guide_08_infrastructure.md) for details.
+
+---
+
+## Installation
+
+```bash
+# With uv (recommended)
+uv add soe
+
+# Or with pip
+pip install soe
+```
+
+---
+
+## Quick Start: Copy-Paste Template
+
+Here's a minimal working example. Copy this, add your own workflow, and run:
+
+```python
+from soe import orchestrate, broadcast_signals
+from soe.local_backends import create_in_memory_backends
+from soe.nodes.router.factory import create_router_node_caller
+
+# 1. Define your workflow in YAML
+workflow_yaml = """
+example_workflow:
+  Start:
+    node_type: router
+    event_triggers: [START]
+    event_emissions:
+      - signal_name: VALID
+        condition: "{{ context.user_input is defined }}"
+      - signal_name: INVALID
+        condition: "{{ context.user_input is not defined }}"
+
+  # Routers can also act as signal converters (tunneling)
+  # This decouples downstream nodes from knowing validation logic
+  OnValid:
+    node_type: router
+    event_triggers: [VALID]
+    event_emissions:
+      - signal_name: DONE
+
+  OnInvalid:
+    node_type: router
+    event_triggers: [INVALID]
+    event_emissions:
+      - signal_name: DONE
+"""
+
+# 2. Create in-memory backends (simplest option)
+backends = create_in_memory_backends()
+
+# 3. Set up nodes and caller
+nodes = {}
+
+def broadcast_signals_caller(id: str, signals):
+    broadcast_signals(id, signals, nodes, backends)
+
+nodes["router"] = create_router_node_caller(backends, broadcast_signals_caller)
+
+# 4. Execute!
+execution_id = orchestrate(
+    config=workflow_yaml,
+    initial_workflow_name="example_workflow",
+    initial_signals=["START"],
+    initial_context={"user_input": "Hello, SOE!"},
+    backends=backends,
+    broadcast_signals_caller=broadcast_signals_caller,
+)
+
+# 5. Check the result
+context = backends.context.get_context(execution_id)
+print(f"Status: {context['status']}")  # Output: Status: success
+```
+
+---
+
+## Adding More Node Types
+
+The template above only uses `router` nodes. To add more capabilities:
+
+### Adding Tool Nodes
+
+```python
+from soe.nodes.tool.factory import create_tool_node_caller
+
+# Define your tools
+def greet(name: str) -> dict:
+    return {"greeting": f"Hello, {name}!"}
+
+tools_registry = {"greet": greet}
+
+# Add to nodes
+nodes["tool"] = create_tool_node_caller(backends, tools_registry, broadcast_signals_caller)
+```
+
+### Adding LLM Nodes
+
+SOE **does not provide** an LLM. Instead, you provide a `call_llm` function that wraps your chosen provider:
+
+```python
+from soe.nodes.llm.factory import create_llm_node_caller
+
+# Define your LLM caller (wrap your API)
+def call_llm(prompt: str, config: dict) -> str:
+    """
+    The LLM caller contract:
+    - prompt: The rendered prompt string (text in)
+    - config: The full node configuration from YAML
+    - returns: The LLM response (text out)
+    """
+    # Example: Using OpenAI
+    import openai
+    response = openai.chat.completions.create(
+        model=config.get("model", "gpt-4o"),  # Custom field from YAML
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+
+# Add to nodes
+nodes["llm"] = create_llm_node_caller(backends, call_llm, broadcast_signals_caller)
+```
+
+The `config` parameter receives the **entire node configuration** from your YAML. This lets you add custom fields:
+
+```yaml
+MyLLM:
+  node_type: llm
+  prompt: "Summarize: {{ context.text }}"
+  model: gpt-4o-mini    # Custom field - your call_llm can read this
+  temperature: 0.7       # Another custom field
+  output_field: summary
+```
+
+See [Chapter 8: Infrastructure](guide_08_infrastructure.md#the-llm-caller) for detailed examples.
+
+### Adding Agent Nodes
+
+```python
+from soe.nodes.agent.factory import create_agent_node_caller
+
+# Agent needs both LLM and tools
+tools = [{"function": greet, "max_retries": 0}]
+nodes["agent"] = create_agent_node_caller(backends, tools, call_llm, broadcast_signals_caller)
+```
+
+### Adding Child Workflow Nodes
+
+```python
+import copy
+from soe import orchestrate, broadcast_signals
+from soe.nodes.child.factory import create_child_node_caller
+from soe.lib.yaml_parser import parse_yaml
+
+# Create orchestrate caller for child workflows
+def orchestrate_caller(workflows_registry, initial_workflow_name, initial_signals, initial_context, backends):
+    if isinstance(workflows_registry, str):
+        workflows_registry = parse_yaml(workflows_registry)
+    else:
+        workflows_registry = copy.deepcopy(workflows_registry)
+
+    def broadcast_signals_caller(execution_id, signals):
+        broadcast_signals(execution_id, signals, nodes, backends)
+
+    return orchestrate(
+        config=workflows_registry,
+        initial_workflow_name=initial_workflow_name,
+        initial_signals=initial_signals,
+        initial_context=initial_context,
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+nodes["child"] = create_child_node_caller(backends, orchestrate_caller)
+```
+
+---
+
+## Helper Function: All Nodes at Once
+
+For convenience, you can set up all node types in one call:
+
+```python
+import copy
+from soe import orchestrate, broadcast_signals
+from soe.local_backends import create_in_memory_backends
+from soe.nodes.router.factory import create_router_node_caller
+from soe.nodes.tool.factory import create_tool_node_caller
+from soe.nodes.llm.factory import create_llm_node_caller
+from soe.nodes.agent.factory import create_agent_node_caller
+from soe.nodes.child.factory import create_child_node_caller
+from soe.lib.yaml_parser import parse_yaml
+
+
+def create_soe_runtime(call_llm=None, tools_registry=None):
+    """
+    Create a complete SOE runtime with all node types.
+
+    Args:
+        call_llm: Optional LLM caller function
+        tools_registry: Optional dict of {tool_name: callable}
+
+    Returns:
+        Tuple of (backends, nodes, broadcast_signals_caller)
+    """
+    backends = create_in_memory_backends()
+    nodes = {}
+
+    def broadcast_signals_caller(id: str, signals):
+        broadcast_signals(id, signals, nodes, backends)
+
+    # Router always available
+    nodes["router"] = create_router_node_caller(backends, broadcast_signals_caller)
+
+    # Tool if registry provided
+    if tools_registry:
+        nodes["tool"] = create_tool_node_caller(
+            backends, tools_registry, broadcast_signals_caller
+        )
+
+    # LLM and Agent if caller provided
+    if call_llm:
+        nodes["llm"] = create_llm_node_caller(
+            backends, call_llm, broadcast_signals_caller
+        )
+        tools = []
+        if tools_registry:
+            tools = [{"function": fn, "max_retries": 0} for fn in tools_registry.values()]
+        nodes["agent"] = create_agent_node_caller(
+            backends, tools, call_llm, broadcast_signals_caller
+        )
+
+    # Child always available - create inline orchestrate_caller
+    def orchestrate_caller(workflows_registry, initial_workflow_name, initial_signals, initial_context, backends):
+        if isinstance(workflows_registry, str):
+            workflows_registry = parse_yaml(workflows_registry)
+        else:
+            workflows_registry = copy.deepcopy(workflows_registry)
+        return orchestrate(
+            config=workflows_registry,
+            initial_workflow_name=initial_workflow_name,
+            initial_signals=initial_signals,
+            initial_context=initial_context,
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+    nodes["child"] = create_child_node_caller(backends, orchestrate_caller)
+
+    return backends, nodes, broadcast_signals_caller
+
+
+# Usage
+backends, nodes, caller = create_soe_runtime()
+
+execution_id = orchestrate(
+    config=workflow_yaml,
+    initial_workflow_name="example_workflow",
+    initial_signals=["START"],
+    initial_context={"user_input": "Hello!"},
+    backends=backends,
+    broadcast_signals_caller=caller,
+)
+```
+
+---
+
+## Choosing Your Infrastructure
+
+SOE supports different infrastructure configurations depending on your needs:
+
+| Scenario | Backends | Caller | Use Case |
+|----------|----------|--------|----------|
+| **Development** | In-Memory | Local | Fast iteration, unit tests |
+| **Local Debugging** | Local Files | Local | Inspect state in JSON files |
+| **Distributed State** | PostgreSQL/DynamoDB | Local | Shared state, multiple workers |
+| **Fully Distributed** | PostgreSQL/DynamoDB | HTTP/SQS/Lambda | Scalable production |
+
+For custom backends and distributed callers, see [Chapter 10: Infrastructure](guide_10_infrastructure.md).
+
+---
+
+## Workflow Portability
+
+A critical design principle: **your workflow YAML works everywhere**.
+
+```yaml
+# This exact workflow runs:
+# - Locally with in-memory backends
+# - In production with PostgreSQL + Lambda callers
+# - In Jenkins with file backends + webhook callers
+example_workflow:
+  ValidateInput:
+    node_type: router
+    event_triggers: [START]
+    event_emissions:
+      - signal_name: VALID
+        condition: "{{ context.data is defined }}"
+```
+
+The workflow defines *what* happens. The infrastructure (backends + callers) defines *how* it executes. Change the infrastructure without touching workflow logic.
+
+---
+
+## Next Steps
+
+**Understand the Building Blocks:**
+- **[The 7 Primitives](primitives/primitives.md)** — Deep dive into signals, context, workflows, and backends
+
+**Core Guides:**
+1. **[Chapter 1: Tool Nodes](guide_01_tool.md)** — Execute Python functions—APIs, databases, real work
+2. **[Chapter 2: LLM Nodes](guide_02_llm.md)** — Add language model capabilities
+3. **[Chapter 3: Router Nodes](guide_03_router.md)** — Pure routing, branching, no execution
+4. **[Chapter 4: Patterns](guide_04_patterns.md)** — Combine primitives: ReAct, chain-of-thought
+5. **[Chapter 5: Agent Nodes](guide_05_agent.md)** — Built-in ReAct loop for tool-using agents
+6. **[Chapter 6: Schema](guide_06_schema.md)** — Validate LLM outputs with context schema
+7. **[Chapter 7: Identity](guide_07_identity.md)** — System prompts and conversation history
+8. **[Chapter 8: Child Workflows](guide_08_child.md)** — Nested workflows with signal communication
+9. **[Chapter 9: Ecosystem](guide_09_ecosystem.md)** — Multi-workflow registries and versioning
+10. **[Chapter 10: Infrastructure](guide_10_infrastructure.md)** — Custom backends and callers
+
+**Advanced:**
+- **[Self-Evolving Workflows](advanced_patterns/self_evolving_workflows.md)** — Workflows that modify themselves at runtime

@@ -1,0 +1,256 @@
+
+# Context: State Management with History
+
+Context is the shared state dictionary for an execution. Unlike simple key-value stores, SOE context maintains **history** for each field—every update is appended, not replaced.
+
+---
+
+## Context as History
+
+Each context field is stored as a **list** of values:
+
+```python
+# After three tool calls that update "result":
+context = {
+    "result": ["first", "second", "third"],  # History preserved
+    "user_id": ["alice"],  # Single value, still a list
+    "__operational__": {...}  # Internal fields not wrapped
+}
+```
+
+When you read a field:
+- **Reading normally** returns the **latest** value (last item)
+- **Reading with `| accumulated`** returns the **full history** (all items)
+
+---
+
+## Reading Context in Jinja
+
+### Get Latest Value (Default)
+
+
+```yaml
+prompt: |
+  User {{ context.user_id }} asked: {{ context.user_request }}
+
+  Previous result: {{ context.result }}
+```
+
+
+This returns the **most recent** value for each field.
+
+### Get Full History with `| accumulated`
+
+
+```yaml
+prompt: |
+  All results so far:
+  {% for r in context.result | accumulated %}
+  - {{ r }}
+  {% endfor %}
+
+condition: "{{ (context.result | accumulated) | length >= 3 }}"
+```
+
+
+Use `| accumulated` when you need:
+- All previous LLM responses
+- Aggregating results from multiple tool calls
+- Checking how many updates have occurred
+
+---
+
+## Context in Conditions
+
+Context is available in all condition expressions:
+
+
+```yaml
+event_emissions:
+  # Check latest value
+  - signal_name: HAS_RESULT
+    condition: "{{ context.result is defined }}"
+
+  # Check history length
+  - signal_name: ENOUGH_DATA
+    condition: "{{ (context.data | accumulated) | length >= 5 }}"
+
+  # Complex conditions
+  - signal_name: VALIDATED
+    condition: "{{ context.user_id and context.user_profile.verified }}"
+```
+
+
+---
+
+## Context in Prompts
+
+Full context is available in LLM/Agent prompts:
+
+
+```yaml
+prompt: |
+  You are helping user {{ context.user_id }}.
+
+  Their profile: {{ context.user_profile | tojson }}
+
+  Conversation so far:
+  {% for msg in context.messages | accumulated %}
+  {{ msg.role }}: {{ msg.content }}
+  {% endfor %}
+
+  Current request: {{ context.user_request }}
+```
+
+
+---
+
+## How Context is Updated
+
+### Tool Nodes
+
+Tool output is saved via `output_field`:
+
+```yaml
+ProcessData:
+  node_type: tool
+  tool_name: process
+  input_fields: [raw_data]
+  output_field: processed  # Tool return value saved here
+```
+
+Each execution **appends** to the field's history.
+
+### LLM/Agent Nodes
+
+LLM response is saved via `output_field`:
+
+
+```yaml
+Summarize:
+  node_type: llm
+  prompt: "Summarize: {{ context.data }}"
+  output_field: summary  # LLM response saved here
+```
+
+
+### Initial Context
+
+When starting orchestration:
+
+```python
+orchestrate(
+    config=workflow,
+    initial_workflow_name="my_workflow",
+    initial_signals=["START"],
+    initial_context={
+        "user_id": "alice",
+        "user_request": "Help me with X"
+    },
+    backends=backends,
+    broadcast_signals_caller=broadcast,
+)
+```
+
+Initial context fields are wrapped in lists automatically:
+```python
+# Internal representation:
+{"user_id": ["alice"], "user_request": ["Help me with X"]}
+```
+
+---
+
+## The `__operational__` Field
+
+Context includes a special `__operational__` field that tracks execution metadata:
+
+```python
+context["__operational__"] = {
+    "signals": ["START", "VALIDATED"],  # Signals emitted
+    "nodes": {"ValidateInput": 1},      # Node execution counts
+    "llm_calls": 3,                     # Total LLM calls
+    "tool_calls": 5,                    # Total tool calls
+    "errors": 0,                        # Error count
+    "main_execution_id": "abc-123"      # Root execution ID
+}
+```
+
+**Important**: Fields starting with `__` are **not** wrapped in lists—they store direct values.
+
+---
+
+## Practical Examples
+
+### Aggregating Multiple Results
+
+
+```yaml
+# Fan-out pattern: multiple child workflows write to same field
+AggregateResults:
+  node_type: router
+  event_triggers: [CHILD_COMPLETE]
+  event_emissions:
+    - signal_name: ALL_DONE
+      condition: "{{ (context.child_results | accumulated) | length >= 3 }}"
+```
+
+
+### Retry with History
+
+
+```yaml
+RetryLogic:
+  node_type: router
+  event_triggers: [FAILED]
+  event_emissions:
+    - signal_name: RETRY
+      condition: "{{ (context.attempts | accumulated) | length < 3 }}"
+    - signal_name: GIVE_UP
+      condition: "{{ (context.attempts | accumulated) | length >= 3 }}"
+```
+
+
+### Building Context Over Time
+
+
+```yaml
+# Each step adds to enrichment
+EnrichStep1:
+  node_type: tool
+  tool_name: get_user_profile
+  input_fields: [user_id]
+  output_field: enrichment
+
+EnrichStep2:
+  node_type: tool
+  tool_name: get_purchase_history
+  input_fields: [user_id]
+  output_field: enrichment  # Same field, appends
+
+# Later: context.enrichment | accumulated = [profile, history]
+```
+
+
+---
+
+## Context Backend
+
+Context is persisted via `ContextBackend`:
+
+```python
+# Save
+backends.context.save_context(execution_id, context)
+
+# Retrieve
+context = backends.context.get_context(execution_id)
+```
+
+See [Backends](backends.md) for implementation details.
+
+---
+
+## See Also
+
+- [Backends](backends.md) — How context is persisted
+- [Signals](signals.md) — How signals trigger nodes based on context
+- [Primitives Overview](primitives.md) — All 7 SOE primitives

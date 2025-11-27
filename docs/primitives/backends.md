@@ -1,0 +1,281 @@
+
+# Backends: Pluggable Storage
+
+Backends are **dumb data retrievers**—they store and retrieve data, nothing more. All business logic lives in the orchestration engine, not in backends.
+
+---
+
+## The Principle: Dumb Data Retrievers
+
+Backends follow a simple principle:
+
+1. **Store data** when told to
+2. **Retrieve data** when asked
+3. **No business logic** — no validation, no transformation, no side effects
+
+This makes backends trivially swappable. Whether you use in-memory, local files, PostgreSQL, or DynamoDB, the orchestration engine works exactly the same.
+
+---
+
+## The 6 Backend Types
+
+| Backend | Protocol | Required | Purpose |
+|---------|----------|----------|---------|
+| `context` | `ContextBackend` | ✅ Yes | Execution state dictionary |
+| `workflow` | `WorkflowBackend` | ✅ Yes | Workflow definitions and current workflow name |
+| `telemetry` | `TelemetryBackend` | ❌ Optional | Logs and events for debugging |
+| `conversation_history` | `ConversationHistoryBackend` | ❌ Optional | LLM chat history per identity |
+| `context_schema` | `ContextSchemaBackend` | ❌ Optional | Type validation for outputs |
+| `identity` | `IdentityBackend` | ❌ Optional | System prompts for LLM identities |
+
+---
+
+## Quick Start: Built-in Backends
+
+SOE provides two factory functions for common use cases:
+
+```python
+from soe.local_backends import create_in_memory_backends, create_local_backends
+
+# For testing: everything in memory (lost on restart)
+backends = create_in_memory_backends()
+
+# For development: persisted to local files
+backends = create_local_backends(
+    context_storage_dir="./data/contexts",
+    workflow_storage_dir="./data/workflows",
+    telemetry_storage_dir="./data/telemetry",
+    conversation_history_storage_dir="./data/conversations",
+    context_schema_storage_dir="./data/schemas",
+    identity_storage_dir="./data/identities",
+)
+```
+
+---
+
+## Implementing Custom Backends
+
+Each backend is a Python Protocol (structural typing). Implement the required methods and you're done.
+
+### ContextBackend (Required)
+
+Stores execution context—the shared state dictionary.
+
+```python
+from typing import Dict, Any
+
+class MyContextBackend:
+    """Store contexts in your database."""
+
+    def save_context(self, id: str, context: Dict[str, Any]) -> None:
+        """Save context for an execution ID."""
+        # Your database write here
+        pass
+
+    def get_context(self, id: str) -> Dict[str, Any]:
+        """Get context for an execution ID."""
+        # Your database read here
+        return {}
+```
+
+### WorkflowBackend (Required)
+
+Stores workflow definitions and tracks current workflow.
+
+```python
+from typing import Dict, Any
+
+class MyWorkflowBackend:
+    """Store workflows in your database."""
+
+    def save_workflows_registry(self, id: str, workflows: Dict[str, Any]) -> None:
+        """Save all workflows for an execution."""
+        pass
+
+    def soe_get_workflows_registry(self, id: str) -> Dict[str, Any]:
+        """Get all workflows for an execution."""
+        return {}
+
+    def save_current_workflow_name(self, id: str, name: str) -> None:
+        """Save current workflow name (for child transitions)."""
+        pass
+
+    def get_current_workflow_name(self, id: str) -> str:
+        """Get current workflow name."""
+        return ""
+```
+
+### TelemetryBackend (Optional)
+
+Logs events for debugging and observability.
+
+```python
+class MyTelemetryBackend:
+    """Log events to your observability stack."""
+
+    def log_event(self, execution_id: str, event_type: str, **event_data) -> None:
+        """Log an event. event_data contains timestamp and event-specific fields."""
+        pass
+```
+
+### ConversationHistoryBackend (Optional)
+
+Persists LLM conversation history per identity.
+
+```python
+from typing import List, Dict, Any
+
+class MyConversationHistoryBackend:
+    """Store chat history in your database."""
+
+    def get_conversation_history(self, identity: str) -> List[Dict[str, Any]]:
+        """Get conversation history. Returns list of {role, content} dicts."""
+        return []
+
+    def append_to_conversation_history(self, identity: str, entry: Dict[str, Any]) -> None:
+        """Append a single message to history."""
+        pass
+
+    def save_conversation_history(self, identity: str, history: List[Dict[str, Any]]) -> None:
+        """Replace entire history."""
+        pass
+
+    def delete_conversation_history(self, identity: str) -> None:
+        """Delete all history for an identity."""
+        pass
+```
+
+### ContextSchemaBackend (Optional)
+
+Stores output field type schemas for validation.
+
+```python
+from typing import Dict, Any, Optional
+
+class MyContextSchemaBackend:
+    """Store context schemas for output validation."""
+
+    def save_context_schema(self, execution_id: str, schema: Dict[str, Any]) -> None:
+        """Save context schema for an execution."""
+        pass
+
+    def get_context_schema(self, execution_id: str) -> Optional[Dict[str, Any]]:
+        """Get context schema. Returns None if not found."""
+        return None
+
+    def delete_context_schema(self, execution_id: str) -> bool:
+        """Delete context schema. Returns True if deleted."""
+        return False
+```
+
+### IdentityBackend (Optional)
+
+Stores LLM identity system prompts.
+
+```python
+from typing import Dict, Optional
+
+class MyIdentityBackend:
+    """Store identity definitions."""
+
+    def save_identities(self, execution_id: str, identities: Dict[str, str]) -> None:
+        """Save identity definitions. Format: {identity_name: system_prompt}"""
+        pass
+
+    def get_identities(self, execution_id: str) -> Optional[Dict[str, str]]:
+        """Get all identities for an execution."""
+        return None
+
+    def get_identity(self, execution_id: str, identity_name: str) -> Optional[str]:
+        """Get a specific identity's system prompt."""
+        return None
+
+    def delete_identities(self, execution_id: str) -> bool:
+        """Delete all identities for an execution."""
+        return False
+```
+
+---
+
+## Combining Into a Backends Container
+
+Pass your backends to orchestrate via a container object:
+
+```python
+class MyBackends:
+    def __init__(self):
+        self.context = MyContextBackend()
+        self.workflow = MyWorkflowBackend()
+        self.telemetry = MyTelemetryBackend()  # or None
+        self.conversation_history = MyConversationHistoryBackend()  # or None
+        self.context_schema = MyContextSchemaBackend()  # or None
+        self.identity = MyIdentityBackend()  # or None
+
+backends = MyBackends()
+```
+
+---
+
+## Database Recommendations
+
+### Single Database, Multiple Tables
+
+We recommend using **one database** with **separate tables** for each backend:
+
+```
+your_database/
+├── contexts          # ContextBackend
+├── workflows         # WorkflowBackend
+├── telemetry         # TelemetryBackend
+├── conversations     # ConversationHistoryBackend
+├── context_schemas   # ContextSchemaBackend
+└── identities        # IdentityBackend
+```
+
+This gives you:
+- **Transactional consistency** across backends
+- **Simpler deployment** (one connection string)
+- **Easier backups** (one database to backup)
+
+### Example: PostgreSQL Tables
+
+```sql
+CREATE TABLE contexts (
+    execution_id VARCHAR PRIMARY KEY,
+    context JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE workflows (
+    execution_id VARCHAR PRIMARY KEY,
+    registry JSONB NOT NULL,
+    current_workflow VARCHAR NOT NULL
+);
+
+CREATE TABLE telemetry (
+    id SERIAL PRIMARY KEY,
+    execution_id VARCHAR NOT NULL,
+    event_type VARCHAR NOT NULL,
+    event_data JSONB,
+    timestamp TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## Key Insight: Execution ID as Primary Key
+
+Most backends key data by `execution_id`:
+
+- **Context**: One context dict per execution
+- **Workflows**: Workflow registry per execution
+- **Telemetry**: Events indexed by execution
+
+For **conversation history**, **context schema**, and **identities**, data is keyed by `main_execution_id`—this allows child workflows to access parent's definitions.
+
+---
+
+## See Also
+
+- [Chapter 10: Infrastructure](../guide_10_infrastructure.md) — Full implementation examples
+- [Primitives Overview](primitives.md) — All 7 SOE primitives

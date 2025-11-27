@@ -1,0 +1,3 @@
+"""
+Schema tests - init file.
+"""

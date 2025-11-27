@@ -1,0 +1,259 @@
+{# SOE Guide: Appendix B - Node Configuration Reference #}
+# Appendix B: Node Configuration Reference
+
+Complete reference for all node configuration parameters across all node types.
+
+## Node Types Overview
+
+| Node Type | Purpose | LLM Required |
+|-----------|---------|--------------|
+| `router` | Evaluate conditions and emit signals | No |
+| `llm` | Single LLM call with structured output | Yes |
+| `agent` | Multi-turn LLM with tool calling | Yes |
+| `tool` | Execute Python function | No |
+| `child` | Start sub-orchestration | No |
+
+## Configuration Parameters
+
+### Legend
+
+- ✓ = Supported
+- ✗ = Not supported
+- **R** = Required
+- **O** = Optional
+
+### Core Parameters
+
+| Parameter | Type | Router | LLM | Agent | Tool | Child | Description |
+|-----------|------|--------|-----|-------|------|-------|-------------|
+| `node_type` | `str` | **R** | **R** | **R** | **R** | **R** | Node type identifier |
+| `event_triggers` | `List[str]` | **R** | **R** | **R** | **R** | **R** | Signals that activate this node |
+| `event_emissions` | `List[dict]` | **R** | **O** | **O** | **O** | **O** | Signals to emit (with optional conditions) |
+
+### Prompt & Output Parameters
+
+| Parameter | Type | Router | LLM | Agent | Tool | Child | Description |
+|-----------|------|--------|-----|-------|------|-------|-------------|
+| `prompt` | `str` | ✗ | **R** | **R** | ✗ | ✗ | Jinja template for LLM prompt |
+| `output_field` | `str` | ✗ | **O** | **O** | **O** | ✗ | Context field to store result |
+| `identity` | `str` | ✗ | **O** | **O** | ✗ | ✗ | Key for conversation history persistence |
+
+### Tool Parameters
+
+| Parameter | Type | Router | LLM | Agent | Tool | Child | Description |
+|-----------|------|--------|-----|-------|------|-------|-------------|
+| `tool_name` | `str` | ✗ | ✗ | ✗ | **R** | ✗ | Tool to execute from registry |
+| `tools` | `List[str]` | ✗ | ✗ | **O** | ✗ | ✗ | Tool names available to agent |
+| `context_parameter_field` | `str` | ✗ | ✗ | ✗ | **O** | ✗ | Context field containing tool kwargs |
+
+### Child Workflow Parameters
+
+| Parameter | Type | Router | LLM | Agent | Tool | Child | Description |
+|-----------|------|--------|-----|-------|------|-------|-------------|
+| `child_workflow_name` | `str` | ✗ | ✗ | ✗ | ✗ | **R** | Workflow to start as child |
+| `child_initial_signals` | `List[str]` | ✗ | ✗ | ✗ | ✗ | **R** | Signals to start child with |
+| `signals_to_parent` | `List[str]` | ✗ | ✗ | ✗ | ✗ | **O** | Child signals that propagate to parent |
+| `context_updates_to_parent` | `List[str]` | ✗ | ✗ | ✗ | ✗ | **O** | Context keys that sync to parent |
+| `input_fields` | `List[str]` | ✗ | ✗ | ✗ | ✗ | **O** | Context fields to pass to child |
+| `fan_out_field` | `str` | ✗ | ✗ | ✗ | ✗ | **O** | Spawn one child per item in field's history |
+| `child_input_field` | `str` | ✗ | ✗ | ✗ | ✗ | **O** | Field in child context for each fan-out item |
+| `spawn_interval` | `float` | ✗ | ✗ | ✗ | ✗ | **O** | Seconds to sleep between fan-out spawns |
+
+### Retry & Failure Parameters
+
+| Parameter | Type | Router | LLM | Agent | Tool | Child | Description |
+|-----------|------|--------|-----|-------|------|-------|-------------|
+| `retries` | `int` | ✗ | **O** | **O** | ✗ | ✗ | Max LLM validation retries (default: 3) |
+| `llm_failure_signal` | `str` | ✗ | **O** | **O** | ✗ | ✗ | Signal when LLM retries exhausted |
+
+## Tool Registry Configuration
+
+Tools are registered with optional configuration:
+
+```python
+# Simple format
+tools_registry = {
+    "send_email": send_email_function,
+}
+
+# Extended format
+tools_registry = {
+    "send_email": {
+        "function": send_email_function,
+        "max_retries": 3,
+        "failure_signal": "EMAIL_FAILED",
+    },
+}
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `function` | `Callable` | Yes | - | The Python function to execute |
+| `max_retries` | `int` | No | 1 | Execution retries on failure |
+| `failure_signal` | `str` | No | None | Signal when all retries exhausted |
+| `process_accumulated` | `bool` | No | False | Pass full history list instead of last value |
+
+## Event Emissions Format
+
+The `event_emissions` parameter accepts a list of signal definitions:
+
+{% raw %}
+```yaml
+event_emissions:
+  - signal_name: SUCCESS
+  - signal_name: NEEDS_REVIEW
+    condition: "{{ result.confidence < 0.8 }}"  # Jinja: evaluated programmatically
+  - signal_name: POSITIVE
+    condition: "User sentiment is positive"  # Plain text: for LLM signal selection
+```
+{% endraw %}
+
+| Field | Type | Required | Description |
+|-------|------|----------|-----------|
+| `signal_name` | `str` | Yes | Signal to emit |
+| `condition` | `str` | No | Plain text = LLM selects signal; Jinja ({% raw %}`{{ }}`{% endraw %}) = evaluated programmatically |
+
+## Parameter Details
+
+### `event_triggers`
+
+Signals that activate the node. Uses OR logic by default.
+
+```yaml
+event_triggers: [START, RETRY, MANUAL_TRIGGER]
+```
+
+### `event_emissions`
+
+Signals to emit after node execution. Behavior varies by node type:
+
+| Node Type | Condition Context | Default Behavior |
+|-----------|-------------------|------------------|
+| Router | `context` | Emits first matching condition |
+| LLM | N/A (uses `description` for LLM selection) | Emits all if no descriptions |
+| Agent | N/A (uses `description` for LLM selection) | Emits all if no descriptions |
+| Tool | `result` and `context` | Emits all on success |
+| Child | `context` | Emits all after child starts |
+
+### `prompt`
+
+Jinja template with access to `context`:
+
+{% raw %}
+```yaml
+prompt: "Analyze the following: {{ context.user_input }}"
+```
+{% endraw %}
+
+### `identity`
+
+Enables conversation history persistence. Same identity = shared history.
+
+{% raw %}
+```yaml
+identity: "user_session_123"
+# Or dynamic:
+identity: "{{ context.session_id }}"
+```
+{% endraw %}
+
+### `retries`
+
+Controls LLM validation retry attempts when response doesn't match expected schema.
+
+```yaml
+retries: 5  # Default is 3
+```
+
+### `llm_failure_signal`
+
+Emit signal instead of raising exception when LLM retries are exhausted:
+
+```yaml
+llm_failure_signal: LLM_FAILED
+```
+
+## Quick Reference by Node Type
+
+### Router Node
+
+{% raw %}
+```yaml
+MyRouter:
+  node_type: router
+  event_triggers: [START]           # Required
+  event_emissions:                   # Required
+    - signal_name: VALID
+      condition: "{{ context.input }}"
+    - signal_name: INVALID
+```
+{% endraw %}
+
+### LLM Node
+
+{% raw %}
+```yaml
+MyLLM:
+  node_type: llm
+  event_triggers: [START]           # Required
+  prompt: "Process: {{ context.data }}"  # Required
+  output_field: result              # Optional
+  identity: session_123             # Optional
+  retries: 3                        # Optional (default: 3)
+  llm_failure_signal: LLM_FAILED    # Optional
+  event_emissions:                   # Optional
+    - signal_name: DONE
+```
+{% endraw %}
+
+### Agent Node
+
+{% raw %}
+```yaml
+MyAgent:
+  node_type: agent
+  event_triggers: [START]           # Required
+  prompt: "Help with: {{ context.task }}"  # Required
+  tools: [search, calculate]        # Optional
+  output_field: result              # Optional
+  identity: agent_session           # Optional
+  retries: 3                        # Optional (default: 3)
+  llm_failure_signal: AGENT_FAILED  # Optional
+  event_emissions:                   # Optional
+    - signal_name: DONE
+```
+{% endraw %}
+
+### Tool Node
+
+{% raw %}
+```yaml
+MyTool:
+  node_type: tool
+  event_triggers: [START]           # Required
+  tool_name: send_email             # Required
+  context_parameter_field: email_data  # Optional
+  output_field: email_result        # Optional
+  event_emissions:                   # Optional
+    - signal_name: SENT
+    - signal_name: NEEDS_RETRY
+      condition: "{{ result.status == 'pending' }}"
+    - signal_name: HIGH_PRIORITY
+      condition: "{{ result.sent and context.email_data.priority == 'high' }}"
+```
+{% endraw %}
+
+### Child Node
+
+```yaml
+MyChild:
+  node_type: child
+  event_triggers: [START]           # Required
+  child_workflow_name: sub_workflow # Required
+  child_initial_signals: [BEGIN]    # Required
+  input_fields: [user_data]         # Optional
+  signals_to_parent: [CHILD_DONE]   # Optional
+  context_updates_to_parent: [result]  # Optional
+  event_emissions:                   # Optional
+    - signal_name: CHILD_STARTED
+```

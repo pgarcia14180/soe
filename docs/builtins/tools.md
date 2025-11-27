@@ -1,0 +1,164 @@
+
+# Built-in: Tool Management
+
+## Dynamic Tool Discovery and Invocation
+
+These built-in tools enable workflows to **discover and invoke tools dynamically**. Rather than hardcoding tool references, workflows can query available capabilities and invoke tools by name at runtime—enabling truly flexible, self-evolving systems.
+
+---
+
+## Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| `soe_get_available_tools` | List all registered tools |
+| `soe_call_tool` | Invoke a tool by name dynamically |
+
+---
+
+## soe_get_available_tools
+
+Discover all tools registered in the current orchestration context.
+
+```yaml
+example_workflow:
+  ListTools:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_get_available_tools
+    output_field: available_tools
+    event_emissions:
+      - signal_name: TOOLS_LISTED
+```
+
+Returns a list of tool names that can be invoked with `soe_call_tool`.
+
+### Use Cases
+
+- **Self-awareness** — Let LLMs understand available capabilities
+- **Dynamic routing** — Choose tools based on current needs
+- **Validation** — Check if a required tool exists before invoking
+
+---
+
+## soe_call_tool
+
+Invoke any registered tool by name with JSON arguments.
+
+```yaml
+example_workflow:
+  CallDynamicTool:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_call_tool
+    context_parameter_field: tool_invocation
+    output_field: tool_result
+    event_emissions:
+      - signal_name: TOOL_CALLED
+```
+
+### Context Setup
+
+The node expects `tool_invocation` in context with:
+
+```python
+{
+    "tool_name": "name_of_tool",
+    "arguments": '{"arg1": "value1", "arg2": "value2"}'
+}
+```
+
+### Return Value
+
+Returns a result dictionary:
+
+```python
+{
+    "success": True,
+    "result": { ... }  # Tool's return value
+}
+```
+
+Or on error:
+
+```python
+{
+    "success": False,
+    "error": "Error message"
+}
+```
+
+### Use Cases
+
+- **LLM-driven tool selection** — Let LLMs choose and invoke tools
+- **Dynamic dispatch** — Route to tools based on runtime conditions
+- **Tool orchestration** — Build meta-tools that compose other tools
+
+---
+
+## Dynamic Tool Pattern
+
+Combine discovery and invocation for fully dynamic behavior:
+
+```yaml
+dynamic_tool_workflow:
+  DiscoverTools:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_get_available_tools
+    output_field: available_tools
+    event_emissions:
+      - signal_name: TOOLS_DISCOVERED
+
+  InvokeTool:
+    node_type: tool
+    event_triggers: [TOOLS_DISCOVERED]
+    tool_name: soe_call_tool
+    context_parameter_field: tool_invocation
+    output_field: invocation_result
+    event_emissions:
+      - signal_name: INVOCATION_COMPLETE
+```
+
+This pattern enables:
+
+1. **Discovery** — First, query available tools
+2. **Decision** — LLM or router selects appropriate tool
+3. **Invocation** — Execute the chosen tool dynamically
+
+---
+
+## When to Use
+
+### Use Dynamic Invocation When:
+
+- Tool selection depends on runtime context
+- LLMs need to choose from available capabilities
+- Building meta-tools that orchestrate other tools
+- Creating plugin-like architectures
+
+### Use Direct Tool Nodes When:
+
+- Tool is always the same
+- No runtime decision needed
+- Performance is critical (direct is faster)
+
+---
+
+## Security Considerations
+
+`soe_call_tool` can only invoke tools in the `tools_registry`. It cannot:
+
+- Execute arbitrary code
+- Access tools not explicitly registered
+- Bypass tool retry/error handling
+
+The registry acts as a whitelist—only tools you register are available.
+
+---
+
+## Related
+
+- [Context Management](context.md) — Managing execution state
+- [Workflow Management](workflows.md) — Runtime workflow modification
+- [Self-Evolving Workflows](../advanced_patterns/self_evolving_workflows.md) — Building autonomous systems

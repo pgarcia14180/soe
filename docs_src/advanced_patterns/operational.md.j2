@@ -1,0 +1,448 @@
+{# SOE Guide: Appendix A - Operational Features #}
+# Appendix A: Operational Features
+
+## Introduction
+
+SOE provides **operational context** and **infrastructure configurations** that give you fine-grained control over workflow execution. These features enable advanced patterns like:
+
+- Waiting for multiple signals (AND logic)
+- Limiting LLM calls
+- Circuit breaker patterns
+- Loop prevention
+- Retry configurations
+
+## The Operational Context
+
+Every workflow execution has a reserved `__operational__` namespace in context. This is **read-only** for your workflows but provides valuable runtime information.
+
+### Structure
+
+```python
+context["__operational__"] = {
+    "signals": ["START", "TASK_A_DONE", ...],  # All signals emitted
+    "nodes": {"NodeName": 3, ...},              # Execution count per node
+    "llm_calls": 5,                             # Total LLM calls
+    "tool_calls": 2,                            # Total tool calls
+    "errors": 0,                                # Total errors
+    "main_execution_id": "abc-123-...",         # Root orchestration ID
+}
+```
+
+### Main Execution ID
+
+The `main_execution_id` is the root orchestration ID that persists across sub-orchestrations:
+
+- For root workflows: `main_execution_id` equals the execution ID
+- For child workflows: `main_execution_id` is inherited from the parent
+- Used by conversation history to share state across the orchestration tree
+
+This enables **persistent identity** where children share conversation history with their parent (see [Identity Guide](guide_07_identity.md)).
+
+### Accessing in Jinja
+
+Use `context.__operational__` in any condition:
+
+{% raw %}
+```yaml
+condition: "{{ 'TASK_A_DONE' in context.__operational__.signals }}"
+condition: "{{ context.__operational__.llm_calls < 10 }}"
+condition: "{{ context.__operational__.tool_calls < 50 }}"
+condition: "{{ context.__operational__.errors >= 3 }}"
+condition: "{{ context.__operational__.nodes.get('MyNode', 0) < 5 }}"
+```
+{% endraw %}
+
+---
+
+## broadcast_signals: Post-Execution Control
+
+After `orchestrate()` returns, you can send additional signals to continue or manipulate the execution using `broadcast_signals`.
+
+### Understanding the Relationship
+
+When you call `orchestrate()`, it:
+1. Generates a new `execution_id`
+2. Initializes clean operational context (`__operational__`)
+3. Runs the workflow until no more signals trigger nodes
+4. Returns the `execution_id`
+
+The `broadcast_signals` function lets you send signals to that execution **after** `orchestrate()` returns.
+
+### Important: Avoid START with broadcast_signals
+
+```python
+# ❌ WRONG - Don't use START with broadcast_signals
+execution_id = orchestrate(
+    config=workflow,
+    initial_signals=["START"],
+    ...
+)
+broadcast_signals(execution_id, ["START"], nodes, backends)  # BAD!
+```
+
+**Why this is wrong**: Sending `START` via `broadcast_signals` will double-process nodes and corrupt the operational context. The operational counters were already incremented during the initial `orchestrate()`.
+
+### Proper Usage of broadcast_signals
+
+```python
+# ✅ CORRECT - Use for continuation or specific signals
+execution_id = orchestrate(
+    config=workflow,
+    initial_signals=["START"],
+    ...
+)
+
+# Later, send a specific signal to continue
+broadcast_signals(execution_id, ["EXTERNAL_EVENT"], nodes, backends)
+broadcast_signals(execution_id, ["RETRY_PHASE_2"], nodes, backends)
+```
+
+### Use Cases for broadcast_signals
+
+1. **Delayed Scheduling**: SOE is infrastructure-agnostic and doesn't include a scheduler. You can use any external scheduler by starting with no signals:
+   ```python
+   # Create the execution but don't start
+   execution_id = orchestrate(
+       config=workflow,
+       initial_signals=[],  # No signals yet!
+       ...
+   )
+
+   # Later, via external scheduler (cron, AWS EventBridge, etc.)
+   broadcast_signals(execution_id, ["START"], nodes, backends)
+   ```
+
+2. **External Event Handling**: Continue a workflow based on external events:
+   ```python
+   # Workflow waiting for approval
+   broadcast_signals(execution_id, ["APPROVED"], nodes, backends)
+   ```
+
+3. **Retries and Remediation**: Trigger specific retry paths:
+   ```python
+   broadcast_signals(execution_id, ["RETRY_FAILED_STEP"], nodes, backends)
+   ```
+
+### For Clean Restarts, Use Inheritance
+
+If you need to restart a workflow completely (fresh operational context), use [Config Inheritance](guide_inheritance.md) instead:
+
+```python
+# Fresh execution inheriting config from previous run
+new_execution_id = orchestrate(
+    config=None,
+    initial_signals=["START"],
+    initial_context={},
+    inherit_config_from_id=old_execution_id,  # Reuse config
+    ...
+)
+```
+
+This creates a new `execution_id` with clean operational counters while reusing the workflow definitions.
+
+---
+
+## Wait for Multiple Signals (AND Logic)
+
+By default, `event_triggers` uses OR logic—any listed signal triggers the node. To implement AND logic (wait for all signals), use a router with operational context:
+
+### The Pattern
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'WAIT_FOR_MULTIPLE_SIGNALS') }}
+```
+
+### How It Works
+
+1.  `TaskA` and `TaskB` both trigger on `START` (parallel execution).
+2.  `WaitForBoth` triggers on either `A_DONE` OR `B_DONE`.
+3.  Condition checks if BOTH signals are in `__operational__.signals`.
+4.  First trigger: condition fails → emits `WAITING`.
+5.  Second trigger: condition succeeds → emits `BOTH_COMPLETE`.
+
+## LLM Call Limiting
+
+Control AI costs by checking `llm_calls`:
+
+### The Pattern
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'LLM_CALL_LIMIT') }}
+```
+
+### Use Cases
+
+- **Budget control**: Stop after N LLM calls.
+- **Rate limiting**: Prevent runaway agent loops.
+- **Tiered processing**: Different paths based on usage.
+
+## Tool Call Limiting
+
+Monitor and limit tool usage by checking `tool_calls`:
+
+### The Pattern
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'TOOL_CALL_LIMIT') }}
+```
+
+### Use Cases
+
+- **Rate limiting**: Prevent excessive API calls to external services.
+- **Resource protection**: Limit database or file system operations.
+- **Cost control**: Track tool usage for billing or quota management.
+
+**Note**: `tool_calls` counts both standalone tool node executions and tool calls made by agent nodes.
+
+## Error Circuit Breaker
+
+Implement circuit breaker pattern using `errors` count:
+
+### The Pattern
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'ERROR_CIRCUIT_BREAKER') }}
+```
+
+### How It Works
+
+1.  `ProcessData` runs a risky tool.
+2.  On failure, `CheckErrors` evaluates error count.
+3.  Under threshold: emit `RETRY` → triggers `START` again.
+4.  Over threshold: emit `CIRCUIT_OPEN` → stop retrying.
+
+## Loop Prevention
+
+Prevent infinite loops by checking node execution count:
+
+### The Pattern
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'LOOP_PREVENTION') }}
+```
+
+### How It Works
+
+1.  `LoopingNode` triggers on `START` or `CONTINUE`.
+2.  Each execution increments `nodes.LoopingNode`.
+3.  Condition checks if count exceeds limit.
+4.  Under limit: emit `CONTINUE` (loop).
+5.  Over limit: emit `LOOP_LIMIT_REACHED` (break).
+
+## Retry Configuration
+
+### LLM Retries
+
+LLM nodes support `retries` for handling validation failures:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'LLM_WITH_RETRIES') }}
+```
+
+When the LLM returns invalid JSON or fails Pydantic validation, SOE automatically retries up to `retries` times (default: 3).
+
+### LLM Failure Signal
+
+When all retries are exhausted, the node raises an exception by default. Use `llm_failure_signal` to emit a signal instead, enabling graceful fallback:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'LLM_WITH_FAILURE_SIGNAL') }}
+```
+
+This pattern enables:
+- **Fallback paths**: Route to cached responses or simpler logic
+- **Graceful degradation**: Continue workflow instead of crashing
+- **Alerting**: Trigger notification workflows on failure
+
+### Agent Retries
+
+Agent nodes also support `retries`:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'AGENT_WITH_RETRIES') }}
+```
+
+This controls how many times the agent's internal LLM calls retry on validation failure.
+
+### Agent Failure Signals
+
+Agents emit `llm_failure_signal` when they exhaust all retries (terminal failure):
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'AGENT_WITH_FAILURE_SIGNALS') }}
+```
+
+**Note**: Tool failures are handled via the tool registry's `failure_signal` configuration (see Tool Retries below).
+
+### Tool Retries
+
+For agent tools, retries are configured per-tool in the tools registry:
+
+```python
+tools = [
+    {"function": risky_tool, "max_retries": 3},
+    {"function": reliable_tool, "max_retries": 0},
+]
+```
+
+When a tool execution fails, the agent can retry up to `max_retries` times before reporting failure to the LLM.
+
+## Conditional Processing Based on State
+
+Combine operational checks for smart routing:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'CONDITIONAL_LLM') }}
+```
+
+## Operational Context Fields Reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `signals` | `List[str]` | All signals emitted during execution |
+| `nodes` | `Dict[str, int]` | Execution count per node name |
+| `llm_calls` | `int` | Total LLM calls (LLM + Agent nodes) |
+| `tool_calls` | `int` | Total tool calls (Tool nodes + Agent tool calls) |
+| `errors` | `int` | Total errors encountered |
+| `main_execution_id` | `str` | Root orchestration ID (persists to children) |
+
+## The Parent Context (`__parent__`)
+
+Child workflows have a `__parent__` namespace in their context containing parent relationship metadata:
+
+```python
+context["__parent__"] = {
+    "parent_execution_id": "parent-abc-123",  # Immediate parent's execution ID
+    "main_execution_id": "root-abc-123",      # Root orchestration ID
+    "signals_to_parent": ["DONE", "FAILED"],  # Signals that propagate up
+    "context_updates_to_parent": ["result"],  # Keys that sync to parent
+}
+```
+
+This is **read-only** and managed by SOE. It enables:
+- Context updates propagating up the orchestration tree
+- Signal forwarding from child to parent
+- Shared conversation history across the entire tree
+
+## Infrastructure Guardrail Patterns
+
+These patterns use routers as guardrails to control execution flow. They check operational context or external conditions **before** allowing expensive operations to proceed.
+
+### Execute Only Once
+
+Prevent duplicate execution of expensive operations:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'EXECUTE_ONCE') }}
+```
+
+**How It Works:**
+1. `OnceGuard` checks if `ExpensiveOperation` has already executed.
+2. First execution: `nodes.get('ExpensiveOperation', 0) == 0` → `PROCEED`.
+3. Subsequent triggers: `ALREADY_EXECUTED` → skip to handler.
+
+**Use Cases:**
+- Billing operations that must happen exactly once.
+- Initialization tasks.
+- Idempotent API calls.
+
+### Health Check Guardrail
+
+Validate external service health before proceeding:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'HEALTH_CHECK_GUARDRAIL') }}
+```
+
+**How It Works:**
+1. Router triggers health check tool.
+2. Tool returns `health_status` with `is_healthy` field.
+3. Second router decides: healthy → proceed, unhealthy → fallback.
+
+**Use Cases:**
+- Check database connectivity before writes.
+- Validate API availability before calls.
+- Verify model endpoints before inference.
+
+### Rate Limiting
+
+Throttle operations based on execution count:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'RATE_LIMITING') }}
+```
+
+**How It Works:**
+1. Guard router checks if `APICall` count is under `rate_limit`.
+2. Under limit: `ALLOWED` → execute.
+3. Over limit: `RATE_LIMITED` → throttle handler.
+
+**Use Cases:**
+- API rate limiting per execution.
+- Cost control for LLM calls.
+- Preventing runaway loops.
+
+### Kill Switch
+
+Context-based execution suspension:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'KILL_SWITCH') }}
+```
+
+**How It Works:**
+1. Guard router checks `context.kill_switch` before each step.
+2. If `true`: emit `SUSPENDED`, execution stops.
+3. External system can set `kill_switch` in context and send signal to resume.
+4. When resumed without kill switch: execution continues.
+
+**Use Cases:**
+- Emergency stop for runaway agents.
+- Pause/resume long-running workflows.
+- Admin override for production systems.
+
+### Production Guardrails (Combined Pattern)
+
+Combine multiple guardrails for production-ready workflows:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/appendix_a_operational.py', 'PRODUCTION_GUARDRAILS') }}
+```
+
+**The Guardrail Chain:**
+1. **Kill Switch Check** - Is the system suspended?
+2. **Rate Limit Check** - Are we under the limit?
+3. **Health Check** - Is the downstream service healthy?
+4. **Execute** - Only if all checks pass.
+
+## Infrastructure Configurations Reference
+
+| Config | Node Types | Default | Description |
+|--------|------------|---------|-------------|
+| `retries` | LLM, Agent | 3 | Max validation retries for LLM response |
+| `llm_failure_signal` | LLM, Agent | None | Signal to emit when all retries exhausted (instead of raising) |
+| `max_retries` | Tool (in registry) | 1 | Max execution retries per tool |
+| `failure_signal` | Tool (in registry) | None | Signal to emit when tool fails after all retries |
+
+## Best Practices
+
+### Do
+
+- **Use operational context for control flow**: Circuit breakers, loop limits.
+- **Check signals for AND logic**: {% raw %}`{{ 'A' in context.__operational__.signals and 'B' in context.__operational__.signals }}`{% endraw %}.
+- **Set retries appropriately**: Higher for unreliable LLMs, lower for deterministic.
+
+### Don't
+
+- **Write to `__operational__`**: It's managed by SOE.
+- **Rely on exact node execution counts**: Implementation may vary.
+- **Use operational context for business logic**: Keep it for infrastructure decisions.
+
+## Key Points
+
+- **`__operational__`** is a read-only namespace with runtime metadata.
+- **AND logic** for signals requires a router checking `__operational__.signals`.
+- **`llm_calls`** and **`errors`** enable cost control and circuit breakers.
+- **`nodes`** counts enable loop prevention.
+- **`retries`** config controls LLM validation retry attempts.
+- **Failure signals** (`llm_failure_signal` for nodes, `failure_signal` for tools) enable graceful error handling instead of exceptions.

@@ -1,0 +1,226 @@
+{# SOE Guide: Chapter 4 - Building Custom Workflows #}
+# SOE Guide: Chapter 4 - Building Custom Workflows
+
+## The Three Core Node Types
+
+You now know SOE's three core node types:
+
+| Node | What It Does | Key Capability |
+|------|--------------|----------------|
+| **Tool** | Executes Python functions | Real-world actions |
+| **LLM** | Calls language models | Intelligence & generation |
+| **Router** | Routes based on context | Control flow & branching |
+
+These three nodes are **all you need** to build sophisticated AI workflows. This chapter shows you how to combine them into powerful patterns—including building your own agent loops from scratch.
+
+## Why Build Custom Workflows?
+
+The built-in **Agent Node** (covered in the next chapter) provides a convenient ReAct loop. But sometimes you need:
+
+- **Custom reasoning patterns** (chain-of-thought, tree-of-thought, metacognition)
+- **Fine-grained control** over each step
+- **Hybrid logic** mixing deterministic and AI-driven decisions
+- **Domain-specific agent architectures**
+
+With these three core nodes, you can build any pattern—the Agent Node is just one opinionated implementation.
+
+---
+
+## Pattern 1: Chain of Thought
+
+**The Pattern**: Break complex reasoning into explicit steps, where each LLM call builds on the previous one.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_patterns.py', 'chain_of_thought') }}
+```
+
+### How It Works
+
+1. **Understand**: LLM analyzes and restates the problem
+2. **Plan**: LLM creates a step-by-step plan based on its understanding
+3. **Execute**: LLM generates the final answer using the plan
+
+Each step stores its output in context, and the next step reads it.
+
+### Why This Pattern?
+
+- **Transparency**: Each reasoning step is visible and inspectable
+- **Debuggability**: If the answer is wrong, you can see exactly where reasoning failed
+- **Control**: You can add validation routers between steps
+
+---
+
+## Pattern 2: Custom ReAct Loop
+
+**The Pattern**: Build your own Reasoning + Acting loop using the three core node types.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_patterns.py', 'custom_react_loop') }}
+```
+
+### How It Works
+
+1. **Reason**: LLM analyzes the situation and decides what to do
+2. **Route**: Router checks if LLM wants to use a tool or finish
+3. **Act**: If tool needed, execute it and loop back to Reason
+4. **Complete**: When done, emit final signal
+
+### The Loop Structure
+
+```
+┌──────────────────────────────────────────────────────┐
+│                                                      │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐          │
+│  │ Reason  │───▶│  Route  │───▶│   Act   │──────────┘
+│  │  (LLM)  │    │(Router) │    │ (Tool)  │
+│  └─────────┘    └────┬────┘    └─────────┘
+│                      │
+│                      ▼
+│                 ┌─────────┐
+│                 │Complete │
+│                 │(Router) │
+│                 └─────────┘
+```
+
+This is exactly what the Agent Node does internally—but now you control every piece.
+
+---
+
+## Pattern 3: Metacognition (Self-Reflection)
+
+**The Pattern**: Have the LLM review and critique its own output before finalizing.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_patterns.py', 'metacognition') }}
+```
+
+### How It Works
+
+1. **Generate**: LLM produces an initial response
+2. **Critique**: A second LLM call reviews the response for errors or improvements
+3. **Route**: Check if revision is needed
+4. **Refine** (if needed): Generate improved response based on critique
+5. **Finalize**: Output the best version
+
+### Why This Pattern?
+
+- **Quality improvement**: Catches errors the first pass missed
+- **Self-correction**: The model identifies its own weaknesses
+- **Controllable iteration**: You decide when to stop refining
+
+---
+
+## Pattern 4: Parallel Analysis with Voting
+
+**The Pattern**: Run multiple LLM analyses in parallel, then aggregate results.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_patterns.py', 'parallel_voting') }}
+```
+
+### How It Works
+
+1. **Fan-Out**: Router emits multiple signals simultaneously
+2. **Parallel Analysis**: Multiple LLM nodes run independently
+3. **Aggregate**: Tool collects all analyses and determines consensus
+4. **Route Result**: Based on the aggregated vote
+
+### Why This Pattern?
+
+- **Diversity of perspective**: Different prompts catch different issues
+- **Robustness**: Single LLM errors are outvoted
+- **Speed**: Parallel execution (if your infrastructure supports it)
+
+---
+
+## Pattern 5: Iterative Refinement with Tools
+
+**The Pattern**: LLM generates, tool validates, loop until valid.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_patterns.py', 'iterative_refinement') }}
+```
+
+### How It Works
+
+1. **Generate**: LLM creates code/content
+2. **Validate**: Tool runs linter, tests, or other validation
+3. **Route**: Check validation result
+4. **Loop or Complete**: If invalid, inject errors and regenerate
+
+### The Loop Structure
+
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐ │
+│  │ Generate │───▶│ Validate │───▶│  Route   │─┘
+│  │  (LLM)   │    │  (Tool)  │    │ (Router) │
+│  └──────────┘    └──────────┘    └────┬─────┘
+│                                       │
+│                                       ▼
+│                                 ┌──────────┐
+│                                 │ Complete │
+│                                 └──────────┘
+```
+
+---
+
+## Pattern 6: Hierarchical Task Decomposition
+
+**The Pattern**: Break complex tasks into subtasks, solve each, then synthesize.
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_patterns.py', 'hierarchical_decomposition') }}
+```
+
+### How It Works
+
+1. **Decompose**: LLM breaks the task into subtasks
+2. **Fan-Out**: Router emits signals for each subtask type
+3. **Solve**: Specialized nodes handle each subtask
+4. **Synthesize**: Combine subtask results into final answer
+
+---
+
+## Combining Patterns
+
+The real power comes from combining patterns. For example:
+
+- **Chain-of-Thought + Metacognition**: Reason step-by-step, then self-review
+- **Custom ReAct + Iterative Refinement**: Agent loop with validation gates
+- **Parallel Voting + Hierarchical Decomposition**: Ensemble of specialized agents
+
+Since everything is YAML, you can compose patterns freely.
+
+---
+
+## When to Use Custom Workflows vs Agent Node
+
+| Use Custom Workflows When... | Use Agent Node When... |
+|------------------------------|------------------------|
+| You need non-standard reasoning patterns | Standard ReAct loop is sufficient |
+| You want explicit control over each step | You want hands-off tool-using agent |
+| You're debugging or iterating on agent logic | You need quick prototyping |
+| You need deterministic checkpoints | Tool selection is the main complexity |
+| You're building production systems with audit requirements | Development speed matters most |
+
+The Agent Node is a **convenience**—it encapsulates a common pattern. These custom workflows show you can build anything.
+
+---
+
+## Next Steps
+
+Now that you can build custom agent patterns, see how the built-in [Agent Node](guide_05_agent.md) encapsulates the ReAct pattern for convenience →

@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "soe-ai"
+version = "0.1.0"
+description = "Signal-driven Orchestration Engine - Agent orchestration with event-driven workflow engine"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    {name = "Pedro Garcia", email = "pedro@example.com"}
+]
+keywords = ["orchestration", "agent", "workflow", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+    "jinja2>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+integration = [
+    "openai>=1.0.0",
+    "requests>=2.28.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/pgarcia14180/soe"
+Documentation = "https://github.com/pgarcia14180/soe/tree/master/docs"
+Repository = "https://github.com/pgarcia14180/soe"
+Issues = "https://github.com/pgarcia14180/soe/issues"
+
+[tool.setuptools]
+packages = ["soe"]
+
+[tool.setuptools.package-data]
+soe = ["py.typed"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.uv.workspace]
+members = [
+    "usage_demo",
+    ".",
+]

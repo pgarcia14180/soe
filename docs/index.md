@@ -1,0 +1,104 @@
+# SOE User Guide
+
+Welcome to the **Signal-driven Orchestration Engine** user guide. This is your starting point for learning how to build workflows with SOE.
+
+---
+
+## Quick Start
+
+New to SOE? Start here:
+
+1. **[Getting Started](guide_00_getting_started.md)** — Installation, core concepts, and your first workflow
+2. **[Tool Nodes](guide_01_tool.md)** — Execute Python functions in your workflows
+3. **[LLM Nodes](guide_02_llm.md)** — Integrate language models into your workflows
+4. **[Router Nodes](guide_03_router.md)** — Pure routing and branching (recommended)
+
+---
+
+## The Guide
+
+### The Three Core Node Types
+
+SOE has three core node types that can build **any** workflow pattern:
+
+| Chapter | Topic | What You'll Learn |
+|---------|-------|-------------------|
+| [00 - Getting Started](guide_00_getting_started.md) | Installation & First Run | How SOE works, synchronous execution, copy-paste template |
+| [01 - Tool](guide_01_tool.md) | Tool Nodes | Execute Python functions—APIs, databases, real work |
+| [02 - LLM](guide_02_llm.md) | LLM Nodes | Call language models, prompt templating, signal selection |
+| [03 - Router](guide_03_router.md) | Router Nodes | Pure routing—entry points, branching, no execution |
+| [04 - Patterns](guide_04_patterns.md) | Building Custom Workflows | Combine core nodes: ReAct, chain-of-thought, metacognition |
+
+With just **Tool**, **LLM**, and **Router**, you can build remarkably sophisticated workflows—including custom agent loops, reasoning chains, and multi-step AI systems.
+
+### Convenience & Advanced Features
+
+These chapters cover higher-level abstractions and advanced capabilities:
+
+| Chapter | Topic | What You'll Learn |
+|---------|-------|-------------------|
+| [05 - Agent](guide_05_agent.md) | Agent Nodes | Built-in ReAct loop—convenience wrapper for tool-using agents |
+| [06 - Schema](guide_06_schema.md) | Context Schema | Type validation for structured LLM output |
+| [07 - Identity](guide_07_identity.md) | Identity & History | System prompts and conversation history across nodes |
+| [08 - Child Workflows](guide_08_child.md) | Sub-orchestration | Nested workflows with signal communication |
+| [09 - Ecosystem](guide_09_ecosystem.md) | The Workflows Ecosystem | Multi-workflow registries, parallel execution, versioning |
+| [10 - Infrastructure](guide_10_infrastructure.md) | Custom Backends & Callers | PostgreSQL, DynamoDB, Lambda, HTTP webhooks |
+| [11 - Built-in Tools](guide_11_builtins.md) | Self-Evolution | Always-available tools for introspection and evolution |
+
+---
+
+## Primitives
+
+Understand the core building blocks:
+
+| Concept | Description |
+|---------|-------------|
+| [The 7 Primitives](primitives/primitives.md) | Signals, Context, Workflows, Backends, Nodes, Identities, Context Schema |
+| [Signals Reference](primitives/signals.md) | Signal emission, conditions, and propagation |
+| [Context Deep Dive](primitives/context.md) | History, accumulated filter, Jinja access |
+| [Backends Reference](primitives/backends.md) | Setup, protocols, custom implementations |
+| [Node Reference](primitives/node_reference.md) | Complete node configuration reference |
+
+---
+
+## Advanced Patterns
+
+For researchers and advanced users exploring SOE's full potential:
+
+| Pattern | Description |
+|---------|-------------|
+| [Advanced Patterns Index](advanced_patterns/index.md) | Overview of all advanced patterns |
+| [Fan-Out & Aggregations](advanced_patterns/guide_fanout_and_aggregations.md) | Parallel processing and accumulated context |
+| [Self-Evolving Workflows](advanced_patterns/self_evolving_workflows.md) | LLM-driven workflow generation and injection |
+| [Swarm Intelligence](advanced_patterns/swarm_intelligence.md) | Multi-agent voting and consensus |
+| [Hybrid Intelligence](advanced_patterns/hybrid_intelligence.md) | Mixing deterministic logic with AI |
+| [Inheritance](advanced_patterns/guide_inheritance.md) | Config and context inheritance between executions |
+| [Operational Features](advanced_patterns/operational.md) | Runtime control, limits, and guardrails |
+
+### Built-in Tools for Self-Evolution
+
+Built-in tools enable granular runtime modifications:
+
+| Built-in | Description |
+|----------|-------------|
+| [explore_docs](builtins/explore_docs.md) | Make SOE self-aware by exploring its documentation |
+| [workflows](builtins/workflows.md) | Query, inject, and modify workflows at runtime |
+| [context](builtins/context.md) | Read, update, and copy execution context |
+| [tools](builtins/tools.md) | Discover and dynamically call registered tools |
+
+---
+
+## Philosophy
+
+SOE is designed around three core principles:
+
+1. **Signal-Driven** — Nodes communicate through signals, not direct calls
+2. **Infrastructure-Agnostic** — Plug in your own databases, LLMs, and distribution mechanisms
+3. **Data-Driven** — Everything flows through context; master the primitives to build anything
+
+---
+
+## Getting Help
+
+- **Source Code**: [github.com/pgarcia14180/soe](https://github.com/pgarcia14180/soe)
+- **PyPI Package**: [pypi.org/project/soe](https://pypi.org/project/soe/)

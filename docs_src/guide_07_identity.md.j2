@@ -1,0 +1,347 @@
+{# SOE Guide: Chapter 7 - Identity and Conversation History #}
+# SOE Guide: Chapter 7 - Identity
+
+## Introduction to Identity
+
+**Identity** enables two powerful features:
+
+1. **Stateful LLM interactions** — Persisting conversation history across calls
+2. **System prompts** — Defining roles for LLM/Agent nodes (via Identity Schema)
+
+Without identity, each LLM call is independent. With identity, the LLM "remembers" previous exchanges—similar to Claude's Projects or custom instructions, but dynamically per-execution.
+
+### Why Identity Matters
+
+Traditional orchestration treats each LLM call as stateless:
+- No memory of previous responses
+- No context accumulation
+- Each call starts fresh
+- You must specify role/instructions in every prompt
+
+Identity transforms this into **dynamic prompting**:
+- Conversation history builds over time
+- LLM can reference its own previous responses
+- Enables multi-turn dialogues within workflows
+- **Identity Schema removes the need to specify role in every prompt**
+
+### Identity Schema in Config
+
+Like context schema, identities are defined in your config YAML:
+
+```yaml
+workflows:
+  example_workflow:
+    Analyzer:
+      node_type: llm
+      event_triggers: [START]
+      prompt: {% raw %}"Analyze: {{ context.input }}"{% endraw %}
+      identity: analyst  # References identity defined below
+      output_field: analysis
+      event_emissions:
+        - signal_name: DONE
+
+identities:
+  analyst: |
+    You are a senior data analyst. Be thorough and precise.
+    Always cite sources when making claims.
+  reviewer: |
+    You are a code reviewer. Focus on correctness and maintainability.
+```
+
+When `identities` is included in config:
+1. It's automatically saved to the `IdentityBackend`
+2. LLM/Agent nodes with matching `identity` field receive the system prompt
+3. Child workflows can access parent's identities through `main_execution_id`
+
+**This removes the need to repeat role instructions in every prompt** — define once in identities, use everywhere.
+
+### Key Insight
+
+**Identity only matters when you have MULTIPLE LLM calls.**
+
+A single LLM node with identity doesn't demonstrate anything—the power comes when a second node with the *same* identity sees the first node's conversation history.
+
+### The Claude Skills Parallel
+
+Think of identity like **Claude Skills** or **Custom Instructions**:
+
+| Claude Skills | SOE Identity |
+|---------------|--------------|
+| Persistent per-project | Persistent per-identity |
+| User configures manually | Workflow configures dynamically |
+| One instruction set | Multiple identities per workflow |
+| Static prompts | Dynamic context + history |
+
+## Multi-Turn Conversations (Same Identity)
+
+Same identity across nodes enables multi-turn dialogues:
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'MULTI_TURN_SAME_IDENTITY') }}
+```
+
+### How It Works
+
+1.  `FirstTurn` executes with `identity: conversation_abc`.
+2.  Prompt and response are saved to conversation history.
+3.  `SecondTurn` triggers with the **same identity**.
+4.  LLM receives `conversation_history` containing the first exchange.
+5.  The second LLM can reference: "As I mentioned about technology..."
+
+### What You'll See in the Prompt
+
+```json
+{
+  "prompt": "Continue the conversation. User asks: Tell me more",
+  "context": "...",
+  "conversation_history": "[user]: Start a conversation about technology\n[assistant]: Technology is fascinating! ..."
+}
+```
+
+The `conversation_history` field is automatically populated because both nodes share `identity: conversation_abc`.
+
+## All Identities Share History (Within Execution)
+
+Nodes with **different** identity values still share history within the same orchestration:
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'MULTI_TURN_DIFFERENT_IDENTITY') }}
+```
+
+### What Actually Happens
+
+1.  `FirstTurn` has identity `session_A` → history enabled, keyed by `main_execution_id`.
+2.  `SecondTurn` has identity `session_B` → history enabled, same `main_execution_id`.
+3.  **Both share the same conversation history** because they use the same execution.
+4.  The identity VALUE (`session_A` vs `session_B`) doesn't matter—only its presence.
+
+**Key insight**: Identity isolation happens at the **orchestration boundary**, not within a workflow.
+
+## No Identity = No History
+
+Without identity, each call is completely stateless:
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'MULTI_TURN_NO_IDENTITY') }}
+```
+
+### What Happens
+
+1.  `FirstTurn` executes, but nothing is saved (no identity).
+2.  `SecondTurn` executes with **empty history**.
+3.  Neither node knows about the other.
+4.  Pure function-like, stateless behavior.
+
+Use this for independent LLM calls that don't need context.
+
+## How Identity Actually Works
+
+**Important**: Identity is a **boolean flag**, not a key.
+
+- **Identity present (any truthy value)**: Conversation history is enabled
+- **Identity absent or empty**: No conversation history
+
+### The Reality
+
+Conversation history is keyed by `main_execution_id`, NOT the identity value:
+
+```python
+# All these share the SAME history within one orchestration:
+identity: conversation_abc    # History keyed by main_execution_id
+identity: session_A           # Same history - same main_execution_id
+identity: user_123            # Same history - same main_execution_id
+
+# Only this is different:
+# (no identity)               # No history at all
+```
+
+This means **all LLM/Agent nodes with any identity share conversation history within an execution tree**. The identity value itself doesn't isolate conversations—it just enables the feature.
+
+### When You Need Isolation
+
+If you need truly isolated conversation histories, you must use **separate orchestration calls**:
+
+```python
+# Execution 1 - has its own main_execution_id
+execution_1 = orchestrate(
+    initial_context={"user_id": "alice"},
+    ...
+)
+
+# Execution 2 - different main_execution_id, different history
+execution_2 = orchestrate(
+    initial_context={"user_id": "bob"},
+    ...
+)
+```
+
+Each `orchestrate()` call creates a new `main_execution_id`, giving isolated histories.
+
+## History Accumulates Over Turns
+
+With three or more nodes using the same identity, history grows:
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'THREE_TURN_CONVERSATION') }}
+```
+
+### Accumulation Pattern
+
+| Turn | Sees History From |
+|------|------------------|
+| Turn1 | (empty) |
+| Turn2 | Turn1 |
+| Turn3 | Turn1 + Turn2 |
+
+Each subsequent call sees all previous exchanges, enabling long-form conversations.
+
+## The Skill Pattern
+
+Combine routing with specialized identities for Claude-like skills:
+
+### The Workflow
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'SKILL_PATTERN_EXAMPLE') }}
+```
+
+### How Skills Work
+
+1.  `SkillRouter` routes based on request content.
+2.  Each skill assistant has its own identity: {% raw %}`{{ context.user_id }}_coding`{% endraw %}.
+3.  Coding history stays with coding assistant.
+4.  Writing history stays with writing assistant.
+5.  User builds separate expertise relationships per skill.
+
+### Benefits
+
+- **Specialized memory**: Each skill remembers its domain conversations.
+- **No cross-contamination**: Coding advice doesn't leak into writing context.
+- **Dynamic prompting**: Same user, different "personalities" per skill.
+
+## Identity and Strong Models
+
+Identity enables **dynamic prompting** patterns that leverage strong models' capabilities:
+
+### Why Strong Models Benefit
+
+Strong models like Claude, GPT-4, and Gemini Pro excel at:
+- Maintaining context across long conversations
+- Referencing previous exchanges accurately
+- Building on established patterns
+
+Identity unlocks this within stateless orchestration:
+
+```python
+# First call builds context
+LLM: "You want to build a REST API. Let's start with the data model..."
+
+# Second call (same identity) references first
+LLM: "Based on the User model we designed, here's the authentication..."
+
+# Third call builds further
+LLM: "Now that auth is set up, let's add the protected endpoints..."
+```
+
+### The Dynamic Prompting Pattern
+
+1.  **Initial context**: First call establishes baseline.
+2.  **Accumulated history**: Each call adds to shared context.
+3.  **Progressive refinement**: Later calls can reference and build.
+4.  **No explicit state management**: History is automatic.
+
+## Defining Identities in Config (Recommended)
+
+The simplest approach is defining `identities` alongside your workflows. Each identity maps to a system prompt:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'COMBINED_IDENTITY_CONFIG') }}
+```
+
+When `identities` is included in config:
+1. Identity definitions are automatically saved to the identity backend
+2. They're keyed by `execution_id` (specifically `main_execution_id`)
+3. Child workflows can access parent's identity definitions
+4. The identity value in nodes (e.g., `identity: helpful_assistant`) is looked up from the definitions
+
+### Multiple Identities
+
+Define multiple specialized identities for different roles:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'COMBINED_MULTI_IDENTITY_CONFIG') }}
+```
+
+### Full Config (Workflows + Schema + Identities)
+
+Combine all sections for complete configuration:
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_identity.py', 'COMBINED_FULL_CONFIG') }}
+```
+
+## Conversation History API
+
+Access history programmatically:
+
+```python
+from soe.local_backends import create_local_backends
+
+backends = create_local_backends(...)
+
+# Get conversation history (keyed by execution_id)
+history = backends.conversation_history.get_conversation_history(execution_id)
+
+# Append to history
+backends.conversation_history.append_to_conversation_history(
+    execution_id,
+    {"role": "user", "content": "Hello"}
+)
+
+# Replace entire history
+backends.conversation_history.save_conversation_history(
+    execution_id,
+    [
+        {"role": "user", "content": "Hi"},
+        {"role": "assistant", "content": "Hello!"}
+    ]
+)
+
+# Clear history
+backends.conversation_history.delete_conversation_history(execution_id)
+```
+
+## Identity Best Practices
+
+### Do
+
+- **Define in config**: Use `identities` section for clear, centralized definitions.
+- **Use meaningful names**: `coding_expert` over `abc123`.
+- **Scope appropriately**: One identity per logical conversation.
+- **Clean up old histories**: Delete stale conversation data.
+
+### Don't
+
+- **Share identities across unrelated tasks**: Causes context confusion.
+- **Use identity for short, independent tasks**: Adds unnecessary overhead.
+- **Forget about history growth**: Long histories consume tokens.
+
+## Key Points
+
+- **Define in config**: Use `identities` section in your config for automatic setup.
+- **Simple format**: `identity_name: "system prompt"` - just a string.
+- **Keyed by execution_id**: Identities are stored by `main_execution_id`, enabling child workflow access.
+- **History keyed by execution**: All nodes share history via `main_execution_id`.
+- **Isolation at orchestration boundary**: Different `orchestrate()` calls have different histories.
+
+## Next Steps
+
+Now that you understand stateful interactions, let's explore [Child Workflows](guide_08_child.md) for sub-orchestration and modular composition →
