@@ -71,7 +71,7 @@ The synchronous nature is about *how a single workflow executes*. Distribution h
 - Replace `broadcast_signals_caller` with an SQS publisher → signals become queue messages
 - Replace backends with PostgreSQL/DynamoDB → state becomes distributed
 
-Your workflow YAML stays exactly the same. See [Chapter 8: Custom Infrastructure](guide_08_infrastructure.md) for details.
+Your workflow YAML stays exactly the same. See [Chapter 10: Custom Infrastructure](guide_10_infrastructure.md) for details.
 
 ---
 
@@ -79,10 +79,10 @@ Your workflow YAML stays exactly the same. See [Chapter 8: Custom Infrastructure
 
 ```bash
 # With uv (recommended)
-uv add soe
+uv add soe-ai
 
 # Or with pip
-pip install soe
+pip install soe-ai
 ```
 
 ---
@@ -208,7 +208,7 @@ MyLLM:
   output_field: summary
 ```
 
-See [Chapter 8: Infrastructure](guide_08_infrastructure.md#the-llm-caller) for detailed examples.
+See [Chapter 10: Infrastructure](guide_10_infrastructure.md#the-llm-caller) for detailed examples.
 
 ### Adding Agent Nodes
 
@@ -229,17 +229,17 @@ from soe.nodes.child.factory import create_child_node_caller
 from soe.lib.yaml_parser import parse_yaml
 
 # Create orchestrate caller for child workflows
-def orchestrate_caller(workflows_registry, initial_workflow_name, initial_signals, initial_context, backends):
-    if isinstance(workflows_registry, str):
-        workflows_registry = parse_yaml(workflows_registry)
+def orchestrate_caller(config, initial_workflow_name, initial_signals, initial_context, backends):
+    if isinstance(config, str):
+        config = parse_yaml(config)
     else:
-        workflows_registry = copy.deepcopy(workflows_registry)
+        config = copy.deepcopy(config)
 
     def broadcast_signals_caller(execution_id, signals):
         broadcast_signals(execution_id, signals, nodes, backends)
 
     return orchestrate(
-        config=workflows_registry,
+        config=config,
         initial_workflow_name=initial_workflow_name,
         initial_signals=initial_signals,
         initial_context=initial_context,
@@ -254,87 +254,29 @@ nodes["child"] = create_child_node_caller(backends, orchestrate_caller)
 
 ## Helper Function: All Nodes at Once
 
-For convenience, you can set up all node types in one call:
+For convenience, you can set up all node types in one call using the built-in `create_all_nodes` helper:
 
 ```python
-import copy
-from soe import orchestrate, broadcast_signals
+from soe import create_all_nodes, orchestrate
 from soe.local_backends import create_in_memory_backends
-from soe.nodes.router.factory import create_router_node_caller
-from soe.nodes.tool.factory import create_tool_node_caller
-from soe.nodes.llm.factory import create_llm_node_caller
-from soe.nodes.agent.factory import create_agent_node_caller
-from soe.nodes.child.factory import create_child_node_caller
-from soe.lib.yaml_parser import parse_yaml
 
+backends = create_in_memory_backends()
 
-def create_soe_runtime(call_llm=None, tools_registry=None):
-    """
-    Create a complete SOE runtime with all node types.
-
-    Args:
-        call_llm: Optional LLM caller function
-        tools_registry: Optional dict of {tool_name: callable}
-
-    Returns:
-        Tuple of (backends, nodes, broadcast_signals_caller)
-    """
-    backends = create_in_memory_backends()
-    nodes = {}
-
-    def broadcast_signals_caller(id: str, signals):
-        broadcast_signals(id, signals, nodes, backends)
-
-    # Router always available
-    nodes["router"] = create_router_node_caller(backends, broadcast_signals_caller)
-
-    # Tool if registry provided
-    if tools_registry:
-        nodes["tool"] = create_tool_node_caller(
-            backends, tools_registry, broadcast_signals_caller
-        )
-
-    # LLM and Agent if caller provided
-    if call_llm:
-        nodes["llm"] = create_llm_node_caller(
-            backends, call_llm, broadcast_signals_caller
-        )
-        tools = []
-        if tools_registry:
-            tools = [{"function": fn, "max_retries": 0} for fn in tools_registry.values()]
-        nodes["agent"] = create_agent_node_caller(
-            backends, tools, call_llm, broadcast_signals_caller
-        )
-
-    # Child always available - create inline orchestrate_caller
-    def orchestrate_caller(workflows_registry, initial_workflow_name, initial_signals, initial_context, backends):
-        if isinstance(workflows_registry, str):
-            workflows_registry = parse_yaml(workflows_registry)
-        else:
-            workflows_registry = copy.deepcopy(workflows_registry)
-        return orchestrate(
-            config=workflows_registry,
-            initial_workflow_name=initial_workflow_name,
-            initial_signals=initial_signals,
-            initial_context=initial_context,
-            backends=backends,
-            broadcast_signals_caller=broadcast_signals_caller,
-        )
-    nodes["child"] = create_child_node_caller(backends, orchestrate_caller)
-
-    return backends, nodes, broadcast_signals_caller
-
+# Set up all nodes (pass your call_llm and tools_registry)
+nodes, broadcast = create_all_nodes(
+    backends,
+    call_llm=my_call_llm,
+    tools_registry=my_tools
+)
 
 # Usage
-backends, nodes, caller = create_soe_runtime()
-
 execution_id = orchestrate(
     config=workflow_yaml,
     initial_workflow_name="example_workflow",
     initial_signals=["START"],
     initial_context={"user_input": "Hello!"},
     backends=backends,
-    broadcast_signals_caller=caller,
+    broadcast_signals_caller=broadcast,
 )
 ```
 
@@ -393,6 +335,7 @@ The workflow defines *what* happens. The infrastructure (backends + callers) def
 8. **[Chapter 8: Child Workflows](guide_08_child.md)** — Nested workflows with signal communication
 9. **[Chapter 9: Ecosystem](guide_09_ecosystem.md)** — Multi-workflow registries and versioning
 10. **[Chapter 10: Infrastructure](guide_10_infrastructure.md)** — Custom backends and callers
+11. **[Chapter 11: Built-in Tools](guide_11_builtins.md)** — Self-evolution, documentation exploration, and runtime modification
 
 **Advanced:**
 - **[Self-Evolving Workflows](advanced_patterns/self_evolving_workflows.md)** — Workflows that modify themselves at runtime

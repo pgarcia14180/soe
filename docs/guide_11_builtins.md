@@ -105,7 +105,7 @@ This pattern is the foundation for metacognitive workflows that can reason about
 
 Explore each built-in category in detail:
 
-- **[soe_explore_docs](builtins/soe_explore_docs.md)** — Self-awareness through documentation
+- **[explore_docs](builtins/explore_docs.md)** — Self-awareness through documentation
 - **[workflows](builtins/workflows.md)** — Runtime workflow modification
 - **[context](builtins/context.md)** — Execution state management
 - **[tools](builtins/tools.md)** — Dynamic tool discovery and invocation

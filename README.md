@@ -95,16 +95,25 @@ SOE is LLM-agnostic. You must provide a `call_llm` function that matches this si
 
 ```python
 def call_llm(
-    messages: list[dict],           # [{"role": "user", "content": "..."}]
-    response_model: type | None,    # Optional Pydantic model for structured output
-) -> str | BaseModel:
-    """Your LLM integration. Use OpenAI, Anthropic, local models, etc."""
+    prompt: str,
+    config: dict,
+) -> str:
+    """
+    Called by SOE when a node needs LLM processing.
+
+    Args:
+        prompt: The rendered prompt string (includes instructions, context, and schemas)
+        config: The full node configuration from YAML (useful for model parameters)
+
+    Returns:
+        The raw text response from the LLM.
+    """
     # Example with OpenAI:
     from openai import OpenAI
     client = OpenAI()
     response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
+        model=config.get("model", "gpt-4o"),
+        messages=[{"role": "user", "content": prompt}],
     )
     return response.choices[0].message.content
 ```

@@ -44,9 +44,22 @@ The agent can call multiple tools in sequence during a single node execution:
 
 **Exhaustive tool calling**: The agent will keep calling tools until it decides to finish. There's no hard limit on tool calls—the agent uses its judgment. To prevent runaway loops, use operational limits (see [Operational Features](advanced_patterns/operational.md)).
 
-## Your First Agent: The Calculator
+## Configuring Tools
 
-Let's look at a simple agent that has access to a tool.
+Agents have access to the tools you provide in their `tools` list.
+
+> [!IMPORTANT]
+> **Tool Restriction**: Agent nodes can ONLY call tools explicitly listed in their `tools` configuration, even if a tool is a SOE built-in. If you want an agent to be able to use a built-in tool like `soe_inject_node`, you must include it in the `tools` list for that node.
+
+### Example: Tool Restriction
+
+```yaml
+MyAgent:
+  node_type: agent
+  tools:
+    - calculate_total     # User tool
+    - soe_inject_node     # Built-in tool (MUST be listed here)
+```
 
 ### The Workflow
 

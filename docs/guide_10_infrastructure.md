@@ -418,3 +418,10 @@ def create_stub_caller(responses: dict = None):
 | **LLM** | CallLlm | None (you provide) | OpenAI, Anthropic, Ollama |
 
 The key principle: **SOE defines the protocols, you provide the implementations**.
+
+---
+
+## Next Steps
+
+Now that you've mastered the infrastructure, explore the capabilities built directly into the engine:
+- **[Chapter 11: Built-in Tools](guide_11_builtins.md)** — Self-evolution, documentation exploration, and runtime modification
