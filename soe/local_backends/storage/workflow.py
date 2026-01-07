@@ -21,7 +21,7 @@ class LocalWorkflowBackend:
         with open(workflows_file, "w") as f:
             json.dump(workflows_registry, f, indent=2, default=str)
 
-    def soe_get_workflows_registry(self, execution_id: str) -> Dict[str, Any]:
+    def get_workflows_registry(self, execution_id: str) -> Dict[str, Any]:
         """Get workflows registry for execution ID."""
         workflows_file = self.storage_dir / f"{execution_id}_workflows.json"
 

@@ -43,7 +43,7 @@ class TestLocalStorageBackends:
         backends.workflow.save_workflows_registry(execution_id, workflow_data)
 
         # Get Registry
-        loaded_registry = backends.workflow.soe_get_workflows_registry(execution_id)
+        loaded_registry = backends.workflow.get_workflows_registry(execution_id)
         assert loaded_registry == workflow_data
 
         # Save Current Workflow Name
@@ -156,7 +156,7 @@ class TestLocalStorageBackends:
         parsed = parse_yaml(yaml_workflow)
         backends.workflow.save_workflows_registry(execution_id, parsed)
 
-        loaded = backends.workflow.soe_get_workflows_registry(execution_id)
+        loaded = backends.workflow.get_workflows_registry(execution_id)
         assert "node1" in loaded
         assert loaded["node1"]["node_type"] == "llm"
 
@@ -319,7 +319,7 @@ class TestInMemoryBackends:
 
     def test_workflow_get_nonexistent(self, backends):
         """Test getting workflow for non-existent execution."""
-        registry = backends.workflow.soe_get_workflows_registry("nonexistent")
+        registry = backends.workflow.get_workflows_registry("nonexistent")
         # In-memory backend returns None for non-existent, storage backend returns {}
         assert registry is None or registry == {}
 

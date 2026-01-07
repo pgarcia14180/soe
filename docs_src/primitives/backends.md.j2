@@ -92,7 +92,7 @@ class MyWorkflowBackend:
         """Save all workflows for an execution."""
         pass
 
-    def soe_get_workflows_registry(self, id: str) -> Dict[str, Any]:
+    def get_workflows_registry(self, id: str) -> Dict[str, Any]:
         """Get all workflows for an execution."""
         return {}
 

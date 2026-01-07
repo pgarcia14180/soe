@@ -29,7 +29,7 @@ def create_soe_add_signal_tool(
         Returns:
             Success confirmation
         """
-        workflows_registry = backends.workflow.soe_get_workflows_registry(execution_id)
+        workflows_registry = backends.workflow.get_workflows_registry(execution_id)
 
         if workflow_name not in workflows_registry:
             raise ValueError(f"Workflow '{workflow_name}' not found")

@@ -62,7 +62,7 @@ def test_soe_inject_workflow_deterministic():
     assert "DONE" in signals
 
     # Verify the workflow was actually injected into the registry
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     assert "new_dynamic_workflow" in workflows
 
     # Cleanup
@@ -106,7 +106,7 @@ def test_inject_node_deterministic():
     assert "DONE" in signals
 
     # Verify the node was injected into the workflow
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     assert "DynamicNode" in workflows["example_workflow"]
 
     # Cleanup
@@ -171,7 +171,7 @@ def test_llm_workflow_generator():
     assert "DONE" in signals
 
     # Verify the LLM-generated workflow was injected
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     assert "generated_workflow" in workflows
 
     # Cleanup

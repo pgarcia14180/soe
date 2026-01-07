@@ -43,7 +43,7 @@ def create_soe_get_workflows_tool(
             soe_get_workflows(workflow_name="orchestrator")  # Get specific workflow
             soe_get_workflows()  # Get everything (legacy behavior)
         """
-        registry = backends.workflow.soe_get_workflows_registry(execution_id)
+        registry = backends.workflow.get_workflows_registry(execution_id)
 
         if list_only:
             return {"workflow_names": list(registry.keys())}

@@ -30,7 +30,7 @@ class WorkflowBackend(Protocol):
     def save_workflows_registry(self, id: str, workflows: Dict[str, Any]) -> None:
         ...
 
-    def soe_get_workflows_registry(self, id: str) -> Any:
+    def get_workflows_registry(self, id: str) -> Any:
         ...
 
     def save_current_workflow_name(self, id: str, name: str) -> None:

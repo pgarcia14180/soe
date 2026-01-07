@@ -80,7 +80,7 @@ def create_soe_inject_workflow_tool(
         validate_workflow(workflow_name, workflow_definition)
 
         # Get current workflows registry via backends and inject new workflow
-        workflows_registry = backends.workflow.soe_get_workflows_registry(execution_id)
+        workflows_registry = backends.workflow.get_workflows_registry(execution_id)
         workflows_registry[workflow_name] = workflow_definition
 
         # Save the updated workflows registry back

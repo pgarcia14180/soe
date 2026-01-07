@@ -105,7 +105,7 @@ def inherit_config(
     Raises:
         ValueError: If source execution has no workflows registry
     """
-    workflows_registry = backends.workflow.soe_get_workflows_registry(source_execution_id)
+    workflows_registry = backends.workflow.get_workflows_registry(source_execution_id)
     if not workflows_registry:
         raise ValueError(
             f"Cannot inherit config from execution '{source_execution_id}': "

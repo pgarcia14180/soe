@@ -39,7 +39,7 @@ def test_soe_remove_workflow_success():
     assert result["removed"] is True
     assert result["workflow_name"] == workflow_name
 
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert workflow_name not in registry
     assert "other_workflow" in registry  # Other workflow still exists
 

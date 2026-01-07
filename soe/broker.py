@@ -139,7 +139,7 @@ def broadcast_signals(
 
     register_event(backends, id, EventTypes.SIGNALS_BROADCAST, {"signals": signals})
 
-    workflows_registry = backends.workflow.soe_get_workflows_registry(id)
+    workflows_registry = backends.workflow.get_workflows_registry(id)
 
     workflow_name = backends.workflow.get_current_workflow_name(id)
     workflow = workflows_registry.get(workflow_name, {})

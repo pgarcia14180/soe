@@ -15,7 +15,7 @@ class InMemoryWorkflowBackend:
         """Save workflows registry for execution ID."""
         self._registries[id] = copy.deepcopy(workflows)
 
-    def soe_get_workflows_registry(self, id: str) -> Any:
+    def get_workflows_registry(self, id: str) -> Any:
         """Get workflows registry for execution ID."""
         return copy.deepcopy(self._registries.get(id))
 

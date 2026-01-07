@@ -17,7 +17,7 @@ def validate_agent_node_runtime(
 
     try:
         backends.workflow.get_current_workflow_name(execution_id)
-        backends.workflow.soe_get_workflows_registry(execution_id)
+        backends.workflow.get_workflows_registry(execution_id)
     except Exception as e:
         raise OperationalValidationError(f"Cannot access workflow backend: {e}")
 

@@ -36,7 +36,7 @@ def test_soe_inject_workflow_json():
     assert result["injected"] is True
     assert result["workflow_name"] == workflow_name
 
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert workflow_name in registry
     assert registry[workflow_name] == workflow_data
 
@@ -77,7 +77,7 @@ def test_soe_inject_workflow_yaml():
 
     assert result["injected"] is True
 
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert workflow_name in registry
     assert registry[workflow_name]["node1"]["node_type"] == "llm"
 
@@ -150,7 +150,7 @@ def test_soe_inject_workflow_single_workflow_container():
     result = inject_tool("target_workflow", json.dumps(workflow_data))
 
     assert result["injected"] is True
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert "target_workflow" in registry
     # Should have extracted the inner workflow
     assert "node1" in registry["target_workflow"]

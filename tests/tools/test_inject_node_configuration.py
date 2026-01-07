@@ -44,7 +44,7 @@ def test_inject_node_config_json():
     assert result["workflow_name"] == workflow_name
     assert result["node_name"] == node_name
 
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert node_name in registry[workflow_name]
     assert registry[workflow_name][node_name] == node_config
 
@@ -89,7 +89,7 @@ def test_inject_node_config_yaml():
 
     assert result["injected"] is True
 
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert registry[workflow_name][node_name]["node_type"] == "llm"
 
     # Assert Telemetry

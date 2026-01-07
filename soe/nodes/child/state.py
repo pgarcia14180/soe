@@ -41,7 +41,7 @@ def get_operational_state(
         main_execution_id=main_execution_id,
     )
 
-    workflows_registry = copy.deepcopy(backends.workflow.soe_get_workflows_registry(execution_id))
+    workflows_registry = copy.deepcopy(backends.workflow.get_workflows_registry(execution_id))
 
     fan_out_field = node_config.get("fan_out_field")
     fan_out_items = get_accumulated(context, fan_out_field) if fan_out_field else []

@@ -64,7 +64,7 @@ def test_add_signal_new_signal():
     assert "NEW_SIGNAL" in result["message"]
 
     # Verify the signal was added
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     node = workflows["example_workflow"]["ProcessNode"]
     signals = [e["signal_name"] for e in node["event_emissions"]]
     assert "NEW_SIGNAL" in signals
@@ -88,7 +88,7 @@ def test_add_signal_update_existing():
     assert "EXISTING_SIGNAL" in result["message"]
 
     # Verify the condition was updated
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     node = workflows["example_workflow"]["ProcessNode"]
     existing = next(e for e in node["event_emissions"] if e["signal_name"] == "EXISTING_SIGNAL")
     assert existing["condition"] == "{{ context.new_condition }}"
@@ -110,7 +110,7 @@ def test_add_signal_to_empty_emissions():
     assert result["status"] == "added"
 
     # Verify the signal was added
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     node = workflows["example_workflow"]["EmptyNode"]
     assert len(node["event_emissions"]) == 1
     assert node["event_emissions"][0]["signal_name"] == "FIRST_SIGNAL"
@@ -121,7 +121,7 @@ def test_add_signal_to_node_without_emissions():
     backends, execution_id = _create_backends_with_workflow()
 
     # Add a node without event_emissions
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     workflows["example_workflow"]["NoEmissionsNode"] = {
         "node_type": "router",
         "event_triggers": ["SOMETHING"]
@@ -140,7 +140,7 @@ def test_add_signal_to_node_without_emissions():
     assert result["status"] == "added"
 
     # Verify event_emissions was created
-    workflows = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows = backends.workflow.get_workflows_registry(execution_id)
     node = workflows["example_workflow"]["NoEmissionsNode"]
     assert "event_emissions" in node
     assert node["event_emissions"][0]["signal_name"] == "ADDED_SIGNAL"

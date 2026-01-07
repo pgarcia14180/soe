@@ -79,7 +79,7 @@ def prepare_agent_context(
 ) -> AgentContext:
     """Prepare all context data for agent execution."""
     context = backends.context.get_context(execution_id)
-    workflows_registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    workflows_registry = backends.workflow.get_workflows_registry(execution_id)
     workflow_name = backends.workflow.get_current_workflow_name(execution_id)
 
     prompt_template = node_config["prompt"]

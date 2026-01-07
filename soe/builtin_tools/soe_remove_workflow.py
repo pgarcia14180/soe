@@ -32,7 +32,7 @@ def create_soe_remove_workflow_tool(
         Returns:
             Success confirmation with removed workflow info
         """
-        workflows_registry = backends.workflow.soe_get_workflows_registry(execution_id)
+        workflows_registry = backends.workflow.get_workflows_registry(execution_id)
 
         if workflow_name not in workflows_registry:
             raise ValueError(

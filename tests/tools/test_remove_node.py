@@ -41,7 +41,7 @@ def test_soe_remove_node_success():
     assert result["workflow_name"] == workflow_name
     assert result["node_name"] == "node1"
 
-    registry = backends.workflow.soe_get_workflows_registry(execution_id)
+    registry = backends.workflow.get_workflows_registry(execution_id)
     assert "node1" not in registry[workflow_name]
     assert "node2" in registry[workflow_name]  # Other node still exists
 

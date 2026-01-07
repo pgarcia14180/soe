@@ -42,8 +42,8 @@ class TestNodeOperationalSabotage:
         execution_id = "test_exec_id"
         backends = self._setup_valid_backends(execution_id)
 
-        # Sabotage: Make soe_get_workflows_registry raise exception
-        backends.workflow.soe_get_workflows_registry = MagicMock(side_effect=Exception("DB Error"))
+        # Sabotage: Make get_workflows_registry raise exception
+        backends.workflow.get_workflows_registry = MagicMock(side_effect=Exception("DB Error"))
 
         with pytest.raises(OperationalValidationError, match="Cannot access workflow backend"):
             validate_agent_node_runtime(execution_id, backends)
@@ -52,8 +52,8 @@ class TestNodeOperationalSabotage:
         execution_id = "test_exec_id"
         backends = self._setup_valid_backends(execution_id)
 
-        # Sabotage: Make soe_get_workflows_registry raise exception
-        backends.workflow.soe_get_workflows_registry = MagicMock(side_effect=Exception("DB Error"))
+        # Sabotage: Make get_workflows_registry raise exception
+        backends.workflow.get_workflows_registry = MagicMock(side_effect=Exception("DB Error"))
 
         with pytest.raises(OperationalValidationError, match="Cannot access workflow backend"):
             validate_child_node_runtime(execution_id, backends)

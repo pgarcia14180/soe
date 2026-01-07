@@ -16,7 +16,7 @@ def validate_child_node_runtime(
     context = validate_operational(execution_id, backends)
 
     try:
-        workflows_registry = backends.workflow.soe_get_workflows_registry(execution_id)
+        workflows_registry = backends.workflow.get_workflows_registry(execution_id)
     except Exception as e:
         raise OperationalValidationError(f"Cannot access workflow backend: {e}")
 
