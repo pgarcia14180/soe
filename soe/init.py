@@ -14,7 +14,7 @@ from .nodes.agent.factory import create_agent_node_caller
 from .nodes.tool.factory import create_tool_node_caller
 from .nodes.child.factory import create_child_node_caller
 from .lib.yaml_parser import parse_yaml
-from .types import CallLlm, Backends
+from .types import CallLlm, Backends, NodeCaller, BroadcastSignalsCaller
 from .local_backends import create_in_memory_backends, create_local_backends
 
 
@@ -22,7 +22,7 @@ def create_all_nodes(
     backends: Backends,
     call_llm: Optional[CallLlm] = None,
     tools_registry: Optional[Dict[str, Callable]] = None,
-) -> Tuple[Dict[str, Callable], Callable]:
+) -> Tuple[Dict[str, NodeCaller], BroadcastSignalsCaller]:
     """
     Create all node types with automatic wiring.
 

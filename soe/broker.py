@@ -1,6 +1,6 @@
 from uuid import uuid4
 from typing import Dict, List, Any, Union, Callable, Optional
-from .types import Backends, BroadcastSignalsCaller
+from .types import Backends, BroadcastSignalsCaller, NodeCaller
 from .local_backends import EventTypes
 from .lib.register_event import register_event
 from .lib.yaml_parser import parse_yaml
@@ -131,7 +131,7 @@ def orchestrate(
 def broadcast_signals(
     id: str,
     signals: List[str],
-    nodes: Dict[str, Callable[[str, Dict[str, Any]], None]],
+    nodes: Dict[str, NodeCaller],
     backends: Backends,
 ) -> None:
     """Broadcast signals to matching nodes in the current workflow"""

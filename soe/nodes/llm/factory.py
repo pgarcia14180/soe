@@ -14,7 +14,7 @@ from ..lib.response_builder import (
     extract_output_from_response,
     extract_signal_from_response,
 )
-from ...types import CallLlm, BroadcastSignalsCaller, Backends
+from ...types import CallLlm, BroadcastSignalsCaller, Backends, LlmNodeCaller
 from ...local_backends import EventTypes
 from ...lib.register_event import register_event
 from ..lib.context import save_output_to_context
@@ -30,7 +30,7 @@ def create_llm_node_caller(
     backends: Backends,
     call_llm: CallLlm,
     broadcast_signals_caller: BroadcastSignalsCaller,
-) -> Callable[[str, Dict[str, Any]], None]:
+) -> LlmNodeCaller:
     """Create LLM node caller with pre-loaded dependencies."""
 
     def execute_llm_node(id: str, node_config: Dict[str, Any]) -> None:

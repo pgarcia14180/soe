@@ -40,13 +40,6 @@ class WorkflowBackend(Protocol):
         ...
 
 
-class OrchestrateCaller(Protocol):
-    """Protocol for orchestrate caller function"""
-
-    def __call__(self, execution_id: str, signals: List[str]) -> None:
-        ...
-
-
 class BroadcastSignalsCaller(Protocol):
     """Protocol for broadcast signals caller function"""
 
@@ -54,41 +47,40 @@ class BroadcastSignalsCaller(Protocol):
         ...
 
 
-class RouterNodeCaller(Protocol):
+class NodeCaller(Protocol):
+    """Protocol for node caller function"""
+
+    def __call__(self, execution_id: str, node_config: Dict[str, Any]) -> None:
+        ...
+
+
+class LlmNodeCaller(NodeCaller):
+    """Protocol for LLM node caller function"""
+    pass
+
+
+class RouterNodeCaller(NodeCaller):
     """Protocol for router node caller function"""
-
-    def __call__(self, execution_id: str, node_config: Dict[str, Any]) -> None:
-        ...
+    pass
 
 
-class AgentNodeCaller(Protocol):
+class AgentNodeCaller(NodeCaller):
     """Protocol for agent node caller function"""
-
-    def __call__(self, execution_id: str, node_config: Dict[str, Any]) -> None:
-        ...
+    pass
 
 
-class ToolNodeCaller(Protocol):
+class ToolNodeCaller(NodeCaller):
     """Protocol for tool node caller function"""
-
-    def __call__(self, execution_id: str, node_config: Dict[str, Any]) -> None:
-        ...
+    pass
 
 
-class ChildNodeCaller(Protocol):
+class ChildNodeCaller(NodeCaller):
     """Protocol for child node caller function"""
-
-    def __call__(self, execution_id: str, node_config: Dict[str, Any]) -> None:
-        ...
+    pass
 
 
 class OrchestrateCaller(Protocol):
-    """Protocol for starting child workflows (wrapper around orchestrate).
-
-    Supports optional inheritance parameters:
-    - inherit_config_from_id: Inherit workflows, identities, schema from existing execution
-    - inherit_context_from_id: Inherit context from existing execution (resets operational)
-    """
+    """Protocol for starting child workflows (wrapper around orchestrate)"""
 
     def __call__(
         self,
