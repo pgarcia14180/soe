@@ -5,8 +5,8 @@ Converts schema definitions to Pydantic models for runtime validation.
 Logic extracted from backends to centralize in lib.
 """
 
-from typing import Dict, Any, Optional, Type
-from pydantic import BaseModel, create_model, Field
+from typing import Dict, Any, Optional, Type, List
+from pydantic import BaseModel, create_model, Field, RootModel
 import json
 
 
@@ -27,6 +27,52 @@ TYPE_MAPPING = {
     "object": dict,
     "any": Any,
 }
+
+
+def _schema_field_to_type(field_def: Any, model_name: str) -> Any:
+    """Resolve a schema field definition to a Python type (supports nested properties/items)."""
+    if isinstance(field_def, str):
+        field_def = {"type": field_def}
+
+    if not isinstance(field_def, dict):
+        return Any
+
+    type_name = field_def.get("type", "any").lower()
+
+    if type_name in ("object", "dict"):
+        properties = field_def.get("properties")
+        if isinstance(properties, dict) and properties:
+            nested_model = schema_to_pydantic(properties, model_name=f"{model_name}Nested")
+            return nested_model
+        return dict
+
+    if type_name in ("list", "array"):
+        items = field_def.get("items")
+        if items:
+            if isinstance(items, str):
+                items = {"type": items}
+            item_type = _schema_field_to_type(items, model_name=f"{model_name}Item")
+            return List[item_type]
+        return list
+
+    return TYPE_MAPPING.get(type_name, Any)
+
+
+def schema_to_root_model(
+    field_def: Dict[str, Any],
+    model_name: str = "RootModel"
+) -> Type[BaseModel]:
+    """Convert a single field schema into a RootModel for flat output validation."""
+    if isinstance(field_def, str):
+        field_def = {"type": field_def}
+
+    root_type = _schema_field_to_type(field_def, model_name=model_name)
+
+    class DynamicRoot(RootModel[root_type]):
+        pass
+
+    DynamicRoot.__name__ = model_name
+    return DynamicRoot
 
 
 def schema_to_pydantic(
@@ -60,9 +106,8 @@ def schema_to_pydantic(
         if isinstance(field_def, str):
             field_def = {"type": field_def}
 
-        # Get Python type
-        type_name = field_def.get("type", "any").lower()
-        python_type = TYPE_MAPPING.get(type_name, Any)
+        # Get Python type (supports nested properties/items)
+        python_type = _schema_field_to_type(field_def, model_name=f"{model_name}{field_name.title()}")
 
         # Get field metadata
         description = field_def.get("description", "")
@@ -85,60 +130,5 @@ def schema_to_pydantic(
 
         fields[field_name] = field_info
 
-    return create_model(model_name, **fields)
-
-
-def validate_against_schema(
-    data: Any,
-    schema: Dict[str, Any],
-    model_name: str = "ValidationModel"
-) -> BaseModel:
-    """
-    Validate data against a schema.
-
-    Args:
-        data: The data to validate (dict or JSON string)
-        schema: The schema definition
-        model_name: Name for the validation model
-
-    Returns:
-        Validated Pydantic model instance
-
-    Raises:
-        ValidationError: If data doesn't match schema
-    """
-    # Parse JSON string if needed
-    if isinstance(data, str):
-        data = json.loads(data)
-
-    # Create model and validate
-    model_class = schema_to_pydantic(schema, model_name)
-    return model_class(**data)
-
-
-def get_pydantic_model_for_fields(
-    schema: Dict[str, Any],
-    field_names: list[str],
-    model_name: str = "DynamicModel"
-) -> Optional[Type[BaseModel]]:
-    """
-    Create a Pydantic model for specific fields from a schema.
-
-    Args:
-        schema: Full schema dict
-        field_names: List of field names to include
-        model_name: Name for the generated model
-
-    Returns:
-        Pydantic model class or None if no matching fields
-    """
-    if not schema:
-        return None
-
-    # Filter to specific fields
-    filtered_schema = {k: v for k, v in schema.items() if k in field_names}
-
-    if not filtered_schema:
-        return None
-
-    return schema_to_pydantic(filtered_schema, model_name)
+    # Allow extra fields to be preserved (important for nested partial schemas)
+    return create_model(model_name, **fields, __config__={"extra": "allow"})

@@ -7,8 +7,7 @@ from typing import Dict, List, Any
 from ...lib.conditions import evaluate_conditions
 from ....lib.context_fields import get_field
 from ....lib.register_event import register_event
-from ....local_backends import EventTypes
-from ....types import Backends
+from ....types import Backends, EventTypes
 
 
 def evaluate_tool_conditions(

@@ -2,7 +2,7 @@
 
 import json
 from typing import Dict, Any, Callable
-from ..local_backends import EventTypes
+from ..types import EventTypes
 from ..lib.register_event import register_event
 from ..lib.yaml_parser import parse_yaml
 

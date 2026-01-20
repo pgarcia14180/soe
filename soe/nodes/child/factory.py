@@ -10,8 +10,7 @@ from ...validation.operational import validate_operational
 from .validation import validate_node_config
 from .state import get_operational_state
 from ...lib.register_event import register_event
-from ...local_backends import EventTypes
-from ...types import ChildNodeCaller, OrchestrateCaller
+from ...types import ChildNodeCaller, OrchestrateCaller, EventTypes
 
 
 def create_child_node_caller(

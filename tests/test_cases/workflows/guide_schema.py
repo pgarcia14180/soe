@@ -204,6 +204,24 @@ SCHEMA_AGENT_DEFINITION = {
     }
 }
 
+COMBINED_AGENT_SCHEMA_CONFIG = """
+workflows:
+  example_workflow:
+    DataAgent:
+      node_type: agent
+      event_triggers: [START]
+      prompt: "Process this request: {{ context.user_request }}"
+      tools: [fetch_data]
+      output_field: response
+      event_emissions:
+        - signal_name: AGENT_COMPLETE
+
+context_schema:
+  response:
+    type: string
+    description: The agent's final response to the user
+"""
+
 # No schema - demonstrates that schemas are optional
 NO_SCHEMA_EXAMPLE = """
 example_workflow:
@@ -272,6 +290,11 @@ context_schema:
   person_data:
     type: object
     description: Extracted person data with name and age
+    properties:
+      name:
+        type: string
+      age:
+        type: integer
 """
 
 COMBINED_MULTI_FIELD_CONFIG = """
@@ -326,6 +349,13 @@ context_schema:
   params:
     type: object
     description: Extracted parameters with operation and numbers
+    properties:
+      operation:
+        type: string
+      numbers:
+        type: list
+        items:
+          type: integer
   result:
     type: object
     description: Calculation result
@@ -346,6 +376,8 @@ context_schema:
   keywords:
     type: list
     description: List of extracted keywords
+    items:
+      type: string
 """
 
 COMBINED_BOOLEAN_SCHEMA_CONFIG = """

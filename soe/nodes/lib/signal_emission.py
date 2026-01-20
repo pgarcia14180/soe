@@ -7,9 +7,8 @@ handling both LLM-selected signals and jinja-conditioned emissions.
 
 from typing import Dict, List, Any, Optional, Protocol
 
-from ...types import BroadcastSignalsCaller, Backends
+from ...types import BroadcastSignalsCaller, Backends, EventTypes
 from ...lib.register_event import register_event
-from ...local_backends import EventTypes
 from .signals import has_jinja_conditions, handle_signal_emission
 
 

@@ -1,7 +1,7 @@
 """Built-in tool to add a signal to a node's event emissions."""
 
 from typing import Dict, Any, Callable
-from ..local_backends import EventTypes
+from ..types import EventTypes
 from ..lib.register_event import register_event
 
 

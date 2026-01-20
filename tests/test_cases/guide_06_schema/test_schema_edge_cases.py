@@ -48,7 +48,7 @@ class TestSchemaTypeCoercion:
         the system should coerce it to an integer.
         """
         def string_number_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"word_count": 42})
+            return json.dumps("42")
 
         backends = create_test_backends("schema_coerce_string_to_int")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=string_number_llm)
@@ -118,15 +118,13 @@ class TestSchemaWithComplexObjects:
         """
         def nested_llm(prompt: str, config: Dict[str, Any]) -> str:
             return json.dumps({
-                "person_data": {
-                    "name": "Bob",
-                    "age": 25,
-                    "address": {
-                        "city": "NYC",
-                        "zip": "10001"
-                    },
-                    "skills": ["python", "javascript"]
-                }
+                "name": "Bob",
+                "age": 25,
+                "address": {
+                    "city": "NYC",
+                    "zip": "10001"
+                },
+                "skills": ["python", "javascript"]
             })
 
         backends = create_test_backends("schema_nested_object")
@@ -162,7 +160,7 @@ class TestSchemaEmptyValues:
         An empty string "" is still a valid string value.
         """
         def empty_string_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"summary": ""})
+            return json.dumps("")
 
         backends = create_test_backends("schema_empty_string")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=empty_string_llm)
@@ -192,7 +190,7 @@ class TestSchemaEmptyValues:
         An empty list [] is still a valid list value.
         """
         def empty_list_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"keywords": []})
+            return json.dumps([])
 
         backends = create_test_backends("schema_empty_list")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=empty_list_llm)
@@ -227,7 +225,7 @@ class TestSchemaZeroAndFalse:
         treated as missing or invalid.
         """
         def zero_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"word_count": 0})
+            return json.dumps(0)
 
         backends = create_test_backends("schema_zero_integer")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=zero_llm)
@@ -258,7 +256,7 @@ class TestSchemaZeroAndFalse:
         treated as missing or invalid.
         """
         def false_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"is_positive": False})
+            return json.dumps(False)
 
         backends = create_test_backends("schema_false_boolean")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=false_llm)
@@ -293,7 +291,7 @@ class TestSchemaDescriptionField:
         and doesn't affect validation logic.
         """
         def simple_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"word_count": 100})
+            return json.dumps(100)
 
         # Custom combined config with long description
         config = """
@@ -344,7 +342,7 @@ class TestSchemaEnforcement:
         in the context_schema backend keyed by execution_id.
         """
         def simple_llm(prompt: str, config: dict) -> str:
-            return json.dumps({"word_count": 42})
+            return json.dumps(42)
 
         backends = create_test_backends("schema_backend_check")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=simple_llm)
@@ -366,6 +364,116 @@ class TestSchemaEnforcement:
 
         backends.cleanup_all()
 
+
+class TestAgentSchemaEdgeCases:
+    """Edge cases for agent output schema validation."""
+
+    def test_agent_schema_empty_string(self):
+        """Agent output can be empty string when schema expects string."""
+        from tests.test_cases.workflows.guide_schema import COMBINED_AGENT_SCHEMA_CONFIG
+        from tests.test_cases.lib import create_agent_nodes, create_call_llm
+
+        call_sequence = []
+
+        def stub_llm(prompt: str, config: dict) -> str:
+            is_router = '"available_tools":' in prompt
+            is_parameter = '"tool_name":' in prompt and not is_router
+
+            if is_router and len(call_sequence) == 0:
+                call_sequence.append("router_1")
+                return '{"action": "call_tool", "tool_name": "fetch_data"}'
+
+            if is_parameter:
+                call_sequence.append("param")
+                return '{"query": "example"}'
+
+            if is_router and len(call_sequence) >= 2:
+                call_sequence.append("router_2")
+                return '{"action": "finish"}'
+
+            call_sequence.append("response")
+            return '""'
+
+        def fetch_data(query: str) -> dict:
+            return {"data": f"result for {query}"}
+
+        backends = create_test_backends("schema_agent_empty_string")
+        call_llm = create_call_llm(stub=stub_llm)
+        tools = [{"function": fetch_data, "max_retries": 0}]
+        nodes, broadcast_signals_caller = create_agent_nodes(backends, call_llm, tools)
+
+        execution_id = orchestrate(
+            config=COMBINED_AGENT_SCHEMA_CONFIG,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"user_request": "Fetch data"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        context = backends.context.get_context(execution_id)
+        signals = extract_signals(backends, execution_id)
+
+        assert "AGENT_COMPLETE" in signals
+        assert context["response"][-1] == ""
+
+        backends.cleanup_all()
+
+    def test_agent_schema_type_mismatch_retries(self):
+        """Agent output type mismatch triggers retry until valid output is returned."""
+        from tests.test_cases.workflows.guide_schema import COMBINED_AGENT_SCHEMA_CONFIG
+        from tests.test_cases.lib import create_agent_nodes, create_call_llm
+
+        call_sequence = []
+        response_attempts = {"n": 0}
+
+        def stub_llm(prompt: str, config: dict) -> str:
+            is_router = '"available_tools":' in prompt
+            is_parameter = '"tool_name":' in prompt and not is_router
+
+            if is_router and len(call_sequence) == 0:
+                call_sequence.append("router_1")
+                return '{"action": "call_tool", "tool_name": "fetch_data"}'
+
+            if is_parameter:
+                call_sequence.append("param")
+                return '{"query": "example"}'
+
+            if is_router and len(call_sequence) >= 2:
+                call_sequence.append("router_2")
+                return '{"action": "finish"}'
+
+            response_attempts["n"] += 1
+            if response_attempts["n"] == 1:
+                return '123'
+            return '"valid response"'
+
+        def fetch_data(query: str) -> dict:
+            return {"data": f"result for {query}"}
+
+        backends = create_test_backends("schema_agent_type_mismatch")
+        call_llm = create_call_llm(stub=stub_llm)
+        tools = [{"function": fetch_data, "max_retries": 0}]
+        nodes, broadcast_signals_caller = create_agent_nodes(backends, call_llm, tools)
+
+        execution_id = orchestrate(
+            config=COMBINED_AGENT_SCHEMA_CONFIG,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"user_request": "Fetch data"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        context = backends.context.get_context(execution_id)
+        signals = extract_signals(backends, execution_id)
+
+        assert "AGENT_COMPLETE" in signals
+        assert context["response"][-1] == "valid response"
+        assert response_attempts["n"] > 1
+
+        backends.cleanup_all()
+
     def test_schema_type_mismatch_triggers_retry(self):
         """
         Test that schema type mismatch triggers LLM retry.
@@ -379,8 +487,8 @@ class TestSchemaEnforcement:
             call_count["n"] += 1
             # First call returns wrong type, subsequent calls return correct type
             if call_count["n"] == 1:
-                return json.dumps({"word_count": "not an integer"})
-            return json.dumps({"word_count": 42})
+                return json.dumps("not an integer")
+            return json.dumps(42)
 
         backends = create_test_backends("schema_type_mismatch")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=type_mismatch_llm)
@@ -414,7 +522,7 @@ class TestSchemaEnforcement:
         """
         def always_wrong_llm(prompt: str, config: dict) -> str:
             # Always return wrong type
-            return json.dumps({"word_count": "still not an integer"})
+            return json.dumps("still not an integer")
 
         backends = create_test_backends("schema_persistent_mismatch")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=always_wrong_llm)

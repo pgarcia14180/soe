@@ -41,206 +41,230 @@ schemas = {
 | `list` | `list` | Arrays |
 | `dict` | `dict` | Alias for object |
 
-## Your First Schema
+## Your First Schema (Full Config)
 
-Let's validate that an LLM returns a proper string summary.
+Let's validate that an LLM returns a proper string summary using the **combined config** format (workflows + context_schema in one YAML).
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-example_workflow:
-  SummarizeLLM:
-    node_type: llm
-    event_triggers: [START]
-    prompt: "Summarize the following text in one sentence: &#123;&#123; context.input_text &#125;&#125;"
-    output_field: summary
-    event_emissions:
-      - signal_name: SUMMARY_COMPLETE
-```
+workflows:
+  example_workflow:
+    SummarizeLLM:
+      node_type: llm
+      event_triggers: [START]
+      prompt: "Summarize the following text in one sentence: &#123;&#123; context.input_text &#125;&#125;"
+      output_field: summary
+      event_emissions:
+        - signal_name: SUMMARY_COMPLETE
 
-### The Schema Definition
-
-```python
-SCHEMA_STRING_DEFINITION = {
-    "example_workflow": {
-        "summary": {
-            "type": "string",
-            "description": "A one-sentence summary of the input text"
-        }
-    }
-}
+context_schema:
+  summary:
+    type: string
+    description: A one-sentence summary of the input text
 ```
 
 ### How It Works
 
 1.  The LLM node writes to `output_field: summary`.
-2.  Schema backend checks if a schema exists for `example_workflow.summary`.
-3.  If found, validates that the output is a string.
-4.  Valid output → saved to context → `SUMMARY_COMPLETE` emitted.
+2.  Schema backend finds the schema for `summary`.
+3.  The LLM returns the **schema value directly** (no wrapper key).
+4.  Valid output → saved to context under `summary` → `SUMMARY_COMPLETE` emitted.
 
-## Integer Schema
+## Integer Schema (Full Config)
 
 For numeric outputs like counts or scores:
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-example_workflow:
-  CounterLLM:
-    node_type: llm
-    event_triggers: [START]
-    prompt: "Count the number of words in this text: &#123;&#123; context.input_text &#125;&#125;. Return only the count."
-    output_field: word_count
-    event_emissions:
-      - signal_name: COUNT_COMPLETE
+workflows:
+  example_workflow:
+    CounterLLM:
+      node_type: llm
+      event_triggers: [START]
+      prompt: "Count the number of words in this text: &#123;&#123; context.input_text &#125;&#125;. Return only the count."
+      output_field: word_count
+      event_emissions:
+        - signal_name: COUNT_COMPLETE
+
+context_schema:
+  word_count:
+    type: integer
+    description: The number of words in the input text
 ```
 
-### The Schema
+The LLM must return `42` (an integer), not `"forty-two"`.
 
-```python
-SCHEMA_INTEGER_DEFINITION = {
-    "example_workflow": {
-        "word_count": {
-            "type": "integer",
-            "description": "The number of words in the input text"
-        }
-    }
-}
-```
-
-The LLM must return `{"word_count": 42}` (an integer), not `{"word_count": "forty-two"}`.
-
-## Object Schema
+## Object Schema (Full Config)
 
 For structured data extraction:
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-example_workflow:
-  ExtractorLLM:
-    node_type: llm
-    event_triggers: [START]
-    prompt: "Extract the person's name and age from: &#123;&#123; context.input_text &#125;&#125;. Return as JSON with 'name' and 'age' fields."
-    output_field: person_data
-    event_emissions:
-      - signal_name: EXTRACTION_COMPLETE
+workflows:
+  example_workflow:
+    ExtractorLLM:
+      node_type: llm
+      event_triggers: [START]
+      prompt: "Extract the person's name and age from: &#123;&#123; context.input_text &#125;&#125;. Return as JSON with 'name' and 'age' fields."
+      output_field: person_data
+      event_emissions:
+        - signal_name: EXTRACTION_COMPLETE
+
+context_schema:
+  person_data:
+    type: object
+    description: Extracted person data with name and age
+    properties:
+      name:
+        type: string
+      age:
+        type: integer
 ```
 
-### The Schema
+Object schemas accept JSON objects. You can also define nested fields with `properties`.
 
-```python
-SCHEMA_OBJECT_DEFINITION = {
-    "example_workflow": {
-        "person_data": {
-            "type": "object",
-            "description": "Extracted person data with name and age"
-        }
-    }
-}
+### Nested Object Schema (with `properties`)
+
+```yaml
+context_schema:
+    person_data:
+        type: object
+        description: Person data
+        properties:
+            name:
+                type: string
+            age:
+                type: integer
+            address:
+                type: object
+                properties:
+                    city:
+                        type: string
+                    zip:
+                        type: string
 ```
 
-Object schemas accept any valid JSON object structure.
+**Valid LLM output (no wrapper):**
 
-## Schema with Tool Integration
+```json
+{"name": "Bob", "age": 25, "address": {"city": "NYC", "zip": "10001"}}
+```
+
+## Schema with Tool Integration (Full Config)
 
 Schema shines when LLM output feeds into tool parameters. This ensures the LLM returns data in the exact format your tool expects.
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-example_workflow:
-  ParameterExtractor:
-    node_type: llm
-    event_triggers: [START]
-    prompt: "Extract the operation and numbers from: &#123;&#123; context.user_request &#125;&#125;. Return JSON with 'operation' (add/multiply) and 'numbers' (list of integers)."
-    output_field: params
-    event_emissions:
-      - signal_name: PARAMS_EXTRACTED
+workflows:
+  example_workflow:
+    ParameterExtractor:
+      node_type: llm
+      event_triggers: [START]
+      prompt: "Extract the operation and numbers from: &#123;&#123; context.user_request &#125;&#125;. Return JSON with 'operation' (add/multiply) and 'numbers' (list of integers)."
+      output_field: params
+      event_emissions:
+        - signal_name: PARAMS_EXTRACTED
 
-  Calculator:
-    node_type: tool
-    event_triggers: [PARAMS_EXTRACTED]
-    tool_name: calculate
-    context_parameter_field: params
-    output_field: result
-    event_emissions:
-      - signal_name: CALCULATED
-```
+    Calculator:
+      node_type: tool
+      event_triggers: [PARAMS_EXTRACTED]
+      tool_name: calculate
+      context_parameter_field: params
+      output_field: result
+      event_emissions:
+        - signal_name: CALCULATED
 
-### The Schema
-
-```python
-SCHEMA_TOOL_INTEGRATION_DEFINITION = {
-    "example_workflow": {
-        "params": {
-            "type": "object",
-            "description": "Extracted parameters with operation and numbers"
-        },
-        "result": {
-            "type": "object",
-            "description": "Calculation result"
-        }
-    }
-}
+context_schema:
+  params:
+    type: object
+    description: Extracted parameters with operation and numbers
+    properties:
+      operation:
+        type: string
+      numbers:
+        type: list
+        items:
+          type: integer
+  result:
+    type: object
+    description: Calculation result
 ```
 
 ### Data Flow
 
-1.  `ParameterExtractor` LLM extracts `{"operation": "add", "numbers": [10, 20, 30]}`.
+1.  `ParameterExtractor` LLM extracts `{ "operation": "add", "numbers": [10, 20, 30] }`.
 2.  Schema validates this is an object (dict).
 3.  `Calculator` tool receives the validated params.
 4.  Tool returns result, also validated against schema.
 
-## Multiple Fields
+## Multiple Fields (Full Config)
 
 A single workflow can have schemas for multiple fields:
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-example_workflow:
-  AnalyzerLLM:
-    node_type: llm
-    event_triggers: [START]
-    prompt: "Analyze this text: &#123;&#123; context.input_text &#125;&#125;. Extract the topic and key points."
-    output_field: topic
-    event_emissions:
-      - signal_name: TOPIC_EXTRACTED
+workflows:
+  example_workflow:
+    AnalyzerLLM:
+      node_type: llm
+      event_triggers: [START]
+      prompt: "Analyze this text: &#123;&#123; context.input_text &#125;&#125;. Extract the topic and key points."
+      output_field: topic
+      event_emissions:
+        - signal_name: TOPIC_EXTRACTED
 
-  SummarizerLLM:
-    node_type: llm
-    event_triggers: [TOPIC_EXTRACTED]
-    prompt: "Given the topic '&#123;&#123; context.topic &#125;&#125;', provide a brief summary of: &#123;&#123; context.input_text &#125;&#125;"
-    output_field: summary
-    event_emissions:
-      - signal_name: ANALYSIS_COMPLETE
-```
+    SummarizerLLM:
+      node_type: llm
+      event_triggers: [TOPIC_EXTRACTED]
+      prompt: "Given the topic '&#123;&#123; context.topic &#125;&#125;', provide a brief summary of: &#123;&#123; context.input_text &#125;&#125;"
+      output_field: summary
+      event_emissions:
+        - signal_name: ANALYSIS_COMPLETE
 
-### The Schema
-
-```python
-SCHEMA_MULTI_FIELD_DEFINITION = {
-    "example_workflow": {
-        "topic": {
-            "type": "string",
-            "description": "The main topic of the text"
-        },
-        "summary": {
-            "type": "string",
-            "description": "A brief summary based on the topic"
-        }
-    }
-}
+context_schema:
+  topic:
+    type: string
+    description: The main topic of the text
+  summary:
+    type: string
+    description: A brief summary based on the topic
 ```
 
 Each field is validated independently when its LLM node completes.
 
-## Schema is Optional
+## Agent Node + Schema (Full Config)
+
+```yaml
+workflows:
+  example_workflow:
+    DataAgent:
+      node_type: agent
+      event_triggers: [START]
+      prompt: "Process this request: &#123;&#123; context.user_request &#125;&#125;"
+      tools: [fetch_data]
+      output_field: response
+      event_emissions:
+        - signal_name: AGENT_COMPLETE
+
+context_schema:
+  response:
+    type: string
+    description: The agent's final response to the user
+```
+
+The agent response is validated against the schema for `response`.
+
+## Schema is Optional (Workflow Only)
 
 Schemas are completely optional. Workflows work fine without them:
 
-### The Workflow
+### The Workflow (No context_schema)
 
 ```yaml
 example_workflow:
@@ -257,6 +281,17 @@ Without schema, LLM output is saved as-is without validation. This is fine for:
 - Prototyping
 - Free-form text generation
 - When you trust the LLM output format
+
+## Output Shape (Important)
+
+When `context_schema` is present, the LLM should return the **schema value directly**:
+
+- For `string`: `"short summary"`
+- For `integer`: `42`
+- For `object`: `{ "domain": "ECOSYSTEM", "instruction": "..." }`
+- For `list`: `["a", "b", "c"]`
+
+SOE stores that value under `context[output_field]`.
 
 ## Defining Schemas in Config (Recommended)
 

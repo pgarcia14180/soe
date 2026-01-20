@@ -41,154 +41,116 @@ schemas = {
 | `list` | `list` | Arrays |
 | `dict` | `dict` | Alias for object |
 
-## Your First Schema
+## Your First Schema (Full Config)
 
-Let's validate that an LLM returns a proper string summary.
+Let's validate that an LLM returns a proper string summary using the **combined config** format (workflows + context_schema in one YAML).
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'SCHEMA_STRING_EXAMPLE') }}
-```
-
-### The Schema Definition
-
-```python
-SCHEMA_STRING_DEFINITION = {
-    "example_workflow": {
-        "summary": {
-            "type": "string",
-            "description": "A one-sentence summary of the input text"
-        }
-    }
-}
+{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'COMBINED_STRING_SCHEMA_CONFIG') }}
 ```
 
 ### How It Works
 
 1.  The LLM node writes to `output_field: summary`.
-2.  Schema backend checks if a schema exists for `example_workflow.summary`.
-3.  If found, validates that the output is a string.
-4.  Valid output → saved to context → `SUMMARY_COMPLETE` emitted.
+2.  Schema backend finds the schema for `summary`.
+3.  The LLM returns the **schema value directly** (no wrapper key).
+4.  Valid output → saved to context under `summary` → `SUMMARY_COMPLETE` emitted.
 
-## Integer Schema
+## Integer Schema (Full Config)
 
 For numeric outputs like counts or scores:
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'SCHEMA_INTEGER_EXAMPLE') }}
+{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'COMBINED_INTEGER_SCHEMA_CONFIG') }}
 ```
 
-### The Schema
+The LLM must return `42` (an integer), not `"forty-two"`.
 
-```python
-SCHEMA_INTEGER_DEFINITION = {
-    "example_workflow": {
-        "word_count": {
-            "type": "integer",
-            "description": "The number of words in the input text"
-        }
-    }
-}
-```
-
-The LLM must return `{"word_count": 42}` (an integer), not `{"word_count": "forty-two"}`.
-
-## Object Schema
+## Object Schema (Full Config)
 
 For structured data extraction:
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'SCHEMA_OBJECT_EXAMPLE') }}
+{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'COMBINED_OBJECT_SCHEMA_CONFIG') }}
 ```
 
-### The Schema
+Object schemas accept JSON objects. You can also define nested fields with `properties`.
 
-```python
-SCHEMA_OBJECT_DEFINITION = {
-    "example_workflow": {
-        "person_data": {
-            "type": "object",
-            "description": "Extracted person data with name and age"
-        }
-    }
-}
+### Nested Object Schema (with `properties`)
+
+```yaml
+context_schema:
+    person_data:
+        type: object
+        description: Person data
+        properties:
+            name:
+                type: string
+            age:
+                type: integer
+            address:
+                type: object
+                properties:
+                    city:
+                        type: string
+                    zip:
+                        type: string
 ```
 
-Object schemas accept any valid JSON object structure.
+**Valid LLM output (no wrapper):**
 
-## Schema with Tool Integration
+```json
+{"name": "Bob", "age": 25, "address": {"city": "NYC", "zip": "10001"}}
+```
+
+## Schema with Tool Integration (Full Config)
 
 Schema shines when LLM output feeds into tool parameters. This ensures the LLM returns data in the exact format your tool expects.
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'SCHEMA_TOOL_INTEGRATION_EXAMPLE') }}
-```
-
-### The Schema
-
-```python
-SCHEMA_TOOL_INTEGRATION_DEFINITION = {
-    "example_workflow": {
-        "params": {
-            "type": "object",
-            "description": "Extracted parameters with operation and numbers"
-        },
-        "result": {
-            "type": "object",
-            "description": "Calculation result"
-        }
-    }
-}
+{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'COMBINED_TOOL_INTEGRATION_CONFIG') }}
 ```
 
 ### Data Flow
 
-1.  `ParameterExtractor` LLM extracts `{"operation": "add", "numbers": [10, 20, 30]}`.
+1.  `ParameterExtractor` LLM extracts `{ "operation": "add", "numbers": [10, 20, 30] }`.
 2.  Schema validates this is an object (dict).
 3.  `Calculator` tool receives the validated params.
 4.  Tool returns result, also validated against schema.
 
-## Multiple Fields
+## Multiple Fields (Full Config)
 
 A single workflow can have schemas for multiple fields:
 
-### The Workflow
+### Full Workflow + Schema (Config)
 
 ```yaml
-{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'SCHEMA_MULTI_FIELD_EXAMPLE') }}
-```
-
-### The Schema
-
-```python
-SCHEMA_MULTI_FIELD_DEFINITION = {
-    "example_workflow": {
-        "topic": {
-            "type": "string",
-            "description": "The main topic of the text"
-        },
-        "summary": {
-            "type": "string",
-            "description": "A brief summary based on the topic"
-        }
-    }
-}
+{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'COMBINED_MULTI_FIELD_CONFIG') }}
 ```
 
 Each field is validated independently when its LLM node completes.
 
-## Schema is Optional
+## Agent Node + Schema (Full Config)
+
+```yaml
+{{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'COMBINED_AGENT_SCHEMA_CONFIG') }}
+```
+
+The agent response is validated against the schema for `response`.
+
+## Schema is Optional (Workflow Only)
 
 Schemas are completely optional. Workflows work fine without them:
 
-### The Workflow
+### The Workflow (No context_schema)
 
 ```yaml
 {{ extract_yaml('tests/test_cases/workflows/guide_schema.py', 'NO_SCHEMA_EXAMPLE') }}
@@ -198,6 +160,17 @@ Without schema, LLM output is saved as-is without validation. This is fine for:
 - Prototyping
 - Free-form text generation
 - When you trust the LLM output format
+
+## Output Shape (Important)
+
+When `context_schema` is present, the LLM should return the **schema value directly**:
+
+- For `string`: `"short summary"`
+- For `integer`: `42`
+- For `object`: `{ "domain": "ECOSYSTEM", "instruction": "..." }`
+- For `list`: `["a", "b", "c"]`
+
+SOE stores that value under `context[output_field]`.
 
 ## Defining Schemas in Config (Recommended)
 

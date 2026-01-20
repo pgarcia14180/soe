@@ -7,6 +7,26 @@ from __future__ import annotations
 from typing import Protocol, Optional, Any, Dict, List
 
 
+class EventTypes:
+    """Constants for telemetry event types"""
+
+    ORCHESTRATION_START = "orchestration_start"
+    SIGNALS_BROADCAST = "signals_broadcast"
+    NODE_EXECUTION = "node_execution"
+    TOOL_CALL = "tool_call"
+    LLM_CALL = "llm_call"
+    SIGNALS_TO_PARENT = "signals_to_parent"
+    NODE_ERROR = "node_error"
+    CONTEXT_WARNING = "context_warning"
+    AGENT_TOOLS_LOADED = "agent_tools_loaded"
+    AGENT_TOOL_CALL = "agent_tool_call"
+    AGENT_TOOL_RESULT = "agent_tool_result"
+    AGENT_TOOL_NOT_FOUND = "agent_tool_not_found"
+    CONFIG_INHERITANCE_START = "config_inheritance_start"
+    CONTEXT_INHERITANCE_START = "context_inheritance_start"
+    CONTEXT_MERGE = "context_merge"
+
+
 class TelemetryBackend(Protocol):
     """Protocol for telemetry backend"""
 

@@ -55,8 +55,11 @@ All workflow state flows through **context**—a shared dictionary accessible vi
 - LLM prompts can interpolate any context field
 - No hidden state—everything is inspectable
 
-### 3. Deterministic + Agentic
-Mix hard-coded logic with LLM-driven behavior in the same workflow. Router nodes are pure conditionals. Agent nodes can call tools. Use what you need.
+### 3. Purely Deterministic or Hybrid Agentic
+SOE is a complete orchestration solution. You can use it as a purely deterministic engine for standard business logic, or mix in LLM-driven "Agentic" behavior.
+- **Deterministic**: Use `router` and `tool` nodes for 100% predictable workflows.
+- **Agentic**: Add `llm` and `agent` nodes for creative, reasoning-based tasks.
+You get the safety of code with the flexibility of AI in a single, unified system.
 
 ### 4. Portable
 Workflows are YAML. Run them locally, in CI, in production. Extract them, version them, share them.
@@ -68,6 +71,27 @@ Workflows can modify themselves at runtime. Built-in tools like `inject_workflow
 - Update signal routing on the fly
 
 This enables **meta-programming**: an AI system that can extend its own capabilities without human intervention.
+
+---
+
+## What SOE Unlocks
+
+SOE is a **Protocol for Intelligence** that unlocks new forms of intelligent behavior:
+
+### Self-Evolving Intelligence
+AI systems that can rewrite and improve themselves at runtime - the ultimate evolution of software.
+
+### Swarm Intelligence
+Efficient collective decision-making among multiple agents through signal-based consensus.
+
+### Hybrid Intelligence
+Seamless combination of deterministic logic and AI creativity with programmatic safety rails.
+
+### Fractal Intelligence
+Hierarchical agent organizations that scale complexity while remaining manageable.
+
+### Infrastructure Intelligence
+AI orchestration that works everywhere - from edge devices to cloud platforms.
 
 ---
 

@@ -7,8 +7,7 @@ Records events to telemetry backend and updates operational context state
 
 from datetime import datetime
 from typing import Dict, Any, Optional
-from ..types import Backends
-from ..local_backends import EventTypes
+from ..types import Backends, EventTypes
 
 
 def register_event(

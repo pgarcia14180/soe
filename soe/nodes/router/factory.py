@@ -8,8 +8,7 @@ from ..lib.conditions import evaluate_conditions
 from ...lib.context_fields import get_field
 from ...validation.operational import validate_operational
 from ...lib.register_event import register_event
-from ...local_backends import EventTypes
-from ...types import BroadcastSignalsCaller, RouterNodeCaller
+from ...types import BroadcastSignalsCaller, RouterNodeCaller, EventTypes
 from .validation import validate_node_config
 from .state import get_operational_state
 

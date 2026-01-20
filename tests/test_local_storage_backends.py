@@ -273,50 +273,6 @@ class TestInMemoryBackends:
         result = backends.context_schema.delete_context_schema("never_existed")
         assert result is False
 
-    def test_context_schema_with_pydantic_model_via_lib(self, backends):
-        """Test getting Pydantic model from context schema using lib function."""
-        from soe.lib.schema_validation import get_pydantic_model_for_fields
-
-        workflow_name = "model_test"
-        schema = {
-            "name": {"type": "string", "description": "A name"},
-            "count": {"type": "integer", "description": "A count"},
-            "active": {"type": "boolean", "description": "Is active"},
-            "score": {"type": "number", "description": "A score"},
-            "items": {"type": "array", "description": "Item list"},
-            "data": {"type": "object", "description": "Data object"}
-        }
-
-        backends.context_schema.save_context_schema(workflow_name, schema)
-
-        # Get schema and create model using lib
-        retrieved_schema = backends.context_schema.get_context_schema(workflow_name)
-        model = get_pydantic_model_for_fields(retrieved_schema, ["name", "count"])
-        assert model is not None
-
-        # Verify model can be instantiated
-        instance = model(name="test", count=5)
-        assert instance.name == "test"
-        assert instance.count == 5
-
-    def test_context_schema_pydantic_model_no_schema(self, backends):
-        """Test getting Pydantic model when no schema exists."""
-        from soe.lib.schema_validation import get_pydantic_model_for_fields
-
-        schema = backends.context_schema.get_context_schema("no_such_workflow")
-        model = get_pydantic_model_for_fields(schema, ["field"]) if schema else None
-        assert model is None
-
-    def test_context_schema_pydantic_model_no_matching_fields(self, backends):
-        """Test getting Pydantic model when no fields match."""
-        from soe.lib.schema_validation import get_pydantic_model_for_fields
-
-        backends.context_schema.save_context_schema("test", {"existing": {"type": "string"}})
-
-        schema = backends.context_schema.get_context_schema("test")
-        model = get_pydantic_model_for_fields(schema, ["nonexistent"])
-        assert model is None
-
     def test_workflow_get_nonexistent(self, backends):
         """Test getting workflow for non-existent execution."""
         registry = backends.workflow.get_workflows_registry("nonexistent")

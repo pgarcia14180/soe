@@ -54,9 +54,6 @@ def extract_and_save_config_sections(
     - Extract and save identities to identity backend
     - Return just the workflows portion
 
-    If config doesn't have 'workflows' key, it's the legacy structure
-    where the entire config is the workflows registry.
-
     Args:
         parsed_config: Parsed config dictionary
         execution_id: Execution ID to save sections under
@@ -77,7 +74,7 @@ def extract_and_save_config_sections(
 
         return workflows
 
-    # Legacy structure - entire config is workflows
+    # Simple/Legacy structure - entire config is workflows
     return parsed_config
 
 

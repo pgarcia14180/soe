@@ -14,8 +14,7 @@ from ..lib.response_builder import (
     extract_output_from_response,
     extract_signal_from_response,
 )
-from ...types import CallLlm, BroadcastSignalsCaller, Backends, LlmNodeCaller
-from ...local_backends import EventTypes
+from ...types import CallLlm, BroadcastSignalsCaller, Backends, LlmNodeCaller, EventTypes
 from ...lib.register_event import register_event
 from ..lib.context import save_output_to_context
 from ..lib.conversation_history import save_conversation_turn

@@ -378,9 +378,9 @@ class TestMultiPhaseInheritance:
         """
         def stub_llm(prompt: str, config: dict) -> str:
             if "Analyze" in prompt:
-                return json.dumps({"analysis": {"insights": "important data found"}})
+                return json.dumps({"insights": "important data found"})
             elif "generate report" in prompt.lower():
-                return json.dumps({"report": "Final report based on analysis"})
+                return json.dumps("Final report based on analysis")
             return json.dumps({})
 
         def validate_analysis(insights: str) -> dict:

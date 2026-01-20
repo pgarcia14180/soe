@@ -12,8 +12,7 @@ from .lib.conditions import evaluate_tool_conditions
 from .types import ToolsRegistry
 from ...lib.register_event import register_event
 from ..lib.context import save_output_to_context
-from ...local_backends import EventTypes
-from ...types import Backends, BroadcastSignalsCaller, ToolNodeCaller
+from ...types import Backends, BroadcastSignalsCaller, ToolNodeCaller, EventTypes
 
 
 def create_tool_node_caller(

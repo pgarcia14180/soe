@@ -1,7 +1,6 @@
 from uuid import uuid4
-from typing import Dict, List, Any, Union, Callable, Optional
-from .types import Backends, BroadcastSignalsCaller, NodeCaller
-from .local_backends import EventTypes
+from typing import Dict, List, Any, Union, Optional
+from .types import Backends, BroadcastSignalsCaller, NodeCaller, EventTypes, WorkflowValidationError
 from .lib.register_event import register_event
 from .lib.yaml_parser import parse_yaml
 from .lib.operational import add_operational_state

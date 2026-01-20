@@ -12,8 +12,7 @@ from .lib.tools import load_tools_and_build_signatures
 from .lib.loop_handlers import handle_finish_action, handle_tool_call_action
 from .stages import execute_router_stage
 from ..lib.signal_emission import emit_completion_signals, handle_llm_failure
-from ...local_backends import EventTypes
-from ...types import BroadcastSignalsCaller, AgentNodeCaller
+from ...types import BroadcastSignalsCaller, AgentNodeCaller, EventTypes
 from ...lib.register_event import register_event
 from ..lib.context import save_output_to_context
 from ...validation.operational import validate_operational

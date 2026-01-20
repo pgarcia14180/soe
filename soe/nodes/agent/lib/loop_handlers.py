@@ -60,7 +60,7 @@ def handle_tool_call_action(
 ) -> bool:
     """Handle the 'call_tool' action from the router."""
     from ....lib.register_event import register_event
-    from ....local_backends import EventTypes
+    from ....types import EventTypes
 
     if not tool_name or tool_name not in tools_registry:
         register_event(

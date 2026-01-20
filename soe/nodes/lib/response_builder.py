@@ -3,9 +3,11 @@ Dynamic Pydantic response model builder.
 """
 
 from typing import Type, Any, Optional, List, Dict, Literal
+from pydantic import RootModel
 from pydantic import BaseModel, Field, create_model
+from typing import Type, Any, Optional, List, Dict, Literal
 
-
+from pydantic import RootModel
 def build_response_model(
     output_field: Optional[str] = None,
     output_schema: Optional[Type[BaseModel]] = None,
@@ -14,21 +16,18 @@ def build_response_model(
     """Dynamically build a Pydantic response model based on requirements."""
     fields: Dict[str, Any] = {}
 
+    root_schema = None
+    if output_schema and isinstance(output_schema, type) and issubclass(output_schema, RootModel):
+        if not signal_options or len(signal_options) <= 1:
+            return output_schema
+        root_schema = output_schema
     if output_field:
-        if output_schema:
-            schema_fields = output_schema.model_fields
-            if output_field in schema_fields:
-                field_info = schema_fields[output_field]
-                field_type = field_info.annotation
-                fields[output_field] = (
-                    field_type,
-                    Field(..., description=f"The {output_field} value matching the expected schema")
-                )
-            else:
-                fields[output_field] = (
-                    Any,
-                    Field(..., description=f"The {output_field} value")
-                )
+        if root_schema:
+            root_type = root_schema.model_fields["root"].annotation
+            fields[output_field] = (
+                root_type,
+                Field(..., description=f"The {output_field} value matching the expected schema")
+            )
         else:
             fields[output_field] = (
                 Any,
@@ -70,6 +69,11 @@ def extract_output_from_response(
     output_field: Optional[str],
 ) -> Any:
     """Extract the output value from a dynamic response model."""
+    if isinstance(response, RootModel):
+        value = response.root
+        if isinstance(value, BaseModel):
+            return value.model_dump()
+        return value
     data = response.model_dump()
     if output_field and output_field in data:
         return data[output_field]
@@ -78,5 +82,7 @@ def extract_output_from_response(
 
 def extract_signal_from_response(response: BaseModel) -> Optional[str]:
     """Extract the selected signal from a dynamic response model."""
+    if isinstance(response, RootModel):
+        return None
     data = response.model_dump()
     return data.get("selected_signal")

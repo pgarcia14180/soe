@@ -4,8 +4,7 @@ from typing import Optional
 
 from ...lib.context import save_output_to_context
 from ....lib.register_event import register_event
-from ....local_backends import EventTypes
-from ....types import Backends, BroadcastSignalsCaller
+from ....types import Backends, BroadcastSignalsCaller, EventTypes
 
 
 def handle_tool_failure(

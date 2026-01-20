@@ -22,6 +22,7 @@ from tests.test_cases.workflows.guide_schema import (
     COMBINED_TOOL_INTEGRATION_CONFIG,
     COMBINED_LIST_SCHEMA_CONFIG,
     COMBINED_BOOLEAN_SCHEMA_CONFIG,
+    COMBINED_AGENT_SCHEMA_CONFIG,
     # Legacy separate definitions (for reference)
     SCHEMA_STRING_EXAMPLE,
     SCHEMA_STRING_DEFINITION,
@@ -40,6 +41,8 @@ from tests.test_cases.workflows.guide_schema import (
     NO_SCHEMA_EXAMPLE,
 )
 
+from tests.test_cases.lib import create_agent_nodes, create_call_llm
+
 
 class TestSchemaStringType:
     """Test schema validation with string output type."""
@@ -52,9 +55,7 @@ class TestSchemaStringType:
         output is validated as a string value.
         """
         def string_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({
-                "summary": "This is a concise summary of the input text."
-            })
+            return json.dumps("This is a concise summary of the input text.")
 
         backends = create_test_backends("schema_string")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=string_llm)
@@ -90,7 +91,7 @@ class TestSchemaIntegerType:
         is validated and stored as an integer.
         """
         def integer_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"word_count": 42})
+            return json.dumps(42)
 
         backends = create_test_backends("schema_integer")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=integer_llm)
@@ -128,10 +129,8 @@ class TestSchemaObjectType:
         """
         def object_llm(prompt: str, config: Dict[str, Any]) -> str:
             return json.dumps({
-                "person_data": {
-                    "name": "Alice",
-                    "age": 30
-                }
+                "name": "Alice",
+                "age": 30
             })
 
         backends = create_test_backends("schema_object")
@@ -169,9 +168,7 @@ class TestSchemaListType:
         is validated as a list/array.
         """
         def list_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({
-                "keywords": ["python", "programming", "automation"]
-            })
+            return json.dumps(["python", "programming", "automation"])
 
         backends = create_test_backends("schema_list")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=list_llm)
@@ -208,7 +205,7 @@ class TestSchemaBooleanType:
         is validated as a boolean value.
         """
         def boolean_llm(prompt: str, config: Dict[str, Any]) -> str:
-            return json.dumps({"is_positive": True})
+            return json.dumps(True)
 
         backends = create_test_backends("schema_boolean")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=boolean_llm)
@@ -245,10 +242,10 @@ class TestSchemaMultipleFields:
         """
         def multi_llm(prompt: str, config: Dict[str, Any]) -> str:
             if "topic" in prompt.lower() and "extract" in prompt.lower():
-                return json.dumps({"topic": "Technology"})
+                return json.dumps("Technology")
             elif "summary" in prompt.lower() or "summarize" in prompt.lower():
-                return json.dumps({"summary": "A brief summary about technology."})
-            return json.dumps({"output": "default"})
+                return json.dumps("A brief summary about technology.")
+            return json.dumps("default")
 
         backends = create_test_backends("schema_multi_field")
         nodes, broadcast_signals_caller = create_nodes(backends, call_llm=multi_llm)
@@ -286,10 +283,8 @@ class TestSchemaWithToolIntegration:
         """
         def param_llm(prompt: str, config: Dict[str, Any]) -> str:
             return json.dumps({
-                "params": {
-                    "operation": "add",
-                    "numbers": [10, 20, 30]
-                }
+                "operation": "add",
+                "numbers": [10, 20, 30]
             })
 
         def calculate(operation: str, numbers: list) -> dict:
@@ -326,6 +321,60 @@ class TestSchemaWithToolIntegration:
         assert "CALCULATED" in signals
         assert "result" in context
         assert context["result"][-1]["result"] == 60
+
+        backends.cleanup_all()
+
+
+class TestSchemaAgentOutput:
+    """Test schema validation on agent response output."""
+
+    def test_agent_schema_validates_output(self):
+        """
+        Agent response should validate against schema and store flat output.
+        """
+        call_sequence = []
+
+        def stub_llm(prompt: str, config: dict) -> str:
+            is_router = '"available_tools":' in prompt
+            is_parameter = '"tool_name":' in prompt and not is_router
+
+            if is_router and len(call_sequence) == 0:
+                call_sequence.append("router_1")
+                return '{"action": "call_tool", "tool_name": "fetch_data"}'
+
+            if is_parameter:
+                call_sequence.append("param")
+                return '{"query": "example"}'
+
+            if is_router and len(call_sequence) >= 2:
+                call_sequence.append("router_2")
+                return '{"action": "finish"}'
+
+            call_sequence.append("response")
+            return '"Here is the data you requested."'
+
+        def fetch_data(query: str) -> dict:
+            return {"data": f"result for {query}"}
+
+        backends = create_test_backends("schema_agent_response")
+        call_llm = create_call_llm(stub=stub_llm)
+        tools = [{"function": fetch_data, "max_retries": 0}]
+        nodes, broadcast_signals_caller = create_agent_nodes(backends, call_llm, tools)
+
+        execution_id = orchestrate(
+            config=COMBINED_AGENT_SCHEMA_CONFIG,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"user_request": "Fetch data"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        context = backends.context.get_context(execution_id)
+        signals = extract_signals(backends, execution_id)
+
+        assert "AGENT_COMPLETE" in signals
+        assert context["response"][-1] == "Here is the data you requested."
 
         backends.cleanup_all()
 

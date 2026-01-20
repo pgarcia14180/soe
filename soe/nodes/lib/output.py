@@ -6,7 +6,9 @@ from typing import Dict, Any, List, Optional, Type
 from pydantic import BaseModel
 
 from .signals import has_jinja_conditions
-from ...lib.schema_validation import get_pydantic_model_for_fields
+from ...lib.schema_validation import schema_to_root_model
+from ...lib.register_event import register_event
+from ...types import EventTypes
 
 
 def needs_llm_signal_selection(event_emissions: List[Dict[str, Any]]) -> bool:
@@ -45,12 +47,22 @@ def get_output_model(
     main_execution_id: str,
     output_field: Optional[str]
 ) -> Optional[Type[BaseModel]]:
-    """Get Pydantic model for output validation if schema exists."""
+    """Get RootModel for flat output validation if schema exists."""
     if not output_field or not backends.context_schema:
         return None
 
     schema = backends.context_schema.get_context_schema(main_execution_id)
-    if not schema:
+    if not schema or output_field not in schema:
+        register_event(
+            backends,
+            main_execution_id,
+            EventTypes.CONTEXT_WARNING,
+            {
+                "message": f"Output field '{output_field}' not found in context schema",
+                "output_field": output_field,
+            },
+        )
         return None
 
-    return get_pydantic_model_for_fields(schema, [output_field], f"OutputSchema")
+    field_def = schema.get(output_field)
+    return schema_to_root_model(field_def, f"{output_field.title()}Root")
