@@ -81,6 +81,10 @@ def extract_output_from_response(
 
 
 def extract_signal_from_response(response: BaseModel) -> Optional[str]:
-    """Extract the selected signal from a dynamic response model."""
+    """
+    Extract the selected signal from a dynamic response model.
+    """
     data = response.model_dump()
-    return data.get("selected_signal")
+    if isinstance(data, dict):
+        return data.get("selected_signal")
+    return None
