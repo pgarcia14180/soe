@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soe-ai"
-version = "0.1.1"
+version = "0.1.2"
 description = "Signal-driven Orchestration Engine - Agent orchestration with event-driven workflow engine"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
 authors = [
-    {name = "Pedro Garcia", email = "pedro@example.com"}
+    {name = "Pedro Garcia", email = "pgarcia14180@gmail.com"}
 ]
 keywords = ["orchestration", "agent", "workflow", "automation"]
 classifiers = [
@@ -49,11 +49,12 @@ Documentation = "https://github.com/pgarcia14180/soe/tree/master/docs"
 Repository = "https://github.com/pgarcia14180/soe"
 Issues = "https://github.com/pgarcia14180/soe/issues"
 
-[tool.setuptools]
-packages = ["soe"]
+[tool.setuptools.packages.find]
+include = ["soe*"]
+exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-soe = ["py.typed"]
+soe = ["py.typed", "docs/**/*"]
 
 [tool.black]
 line-length = 88
