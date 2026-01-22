@@ -184,8 +184,8 @@ execution_id = orchestrate(
 
 | Audience | Start Here |
 |----------|------------|
-| **Builders** (workflow authors) | [Documentation](docs/index.md) — Step-by-step chapters |
-| **Engineers** (infrastructure) | [Infrastructure Guide](docs/guide_10_infrastructure.md) — Backend protocols |
+| **Builders** (workflow authors) | [Documentation](soe/docs/index.md) — Step-by-step chapters |
+| **Engineers** (infrastructure) | [Infrastructure Guide](soe/docs/guide_10_infrastructure.md) — Backend protocols |
 | **Researchers** (advanced patterns) | [Advanced Patterns](docs/advanced_patterns/) — Swarm, hybrid, self-evolving |
 
 ---
