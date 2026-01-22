@@ -67,9 +67,9 @@ def _get_format_instructions(model: Type[BaseModel]) -> str:
     """Generate instructions for JSON output based on the model schema."""
     schema = model.model_json_schema()
     return (
-        f"Respond ONLY with a valid JSON object that adheres to this schema:\n"
+        f"Respond ONLY with a valid JSON object matching this schema:\n"
         f"{json.dumps(schema)}\n"
-        f"Do not return the schema itself. Return an instance of the schema."
+        f"Do not return the schema itself. Return a JSON instance of the schema."
     )
 
 
