@@ -1,10 +1,10 @@
-from typing import Literal, Optional, List, Dict, Any, Callable
+from typing import Literal, Optional, List, Callable
 from pathlib import Path
 import os
 
 from soe.docs_index import DOCS_INDEX
 
-# Get the SOE package root directory (where docs/ lives)
+# Get the SOE package root directory (where soe/docs/ lives)
 # This goes from soe/builtin_tools/soe_explore_docs.py → soe/builtin_tools → soe/soe → soe/
 SOE_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -67,13 +67,13 @@ def soe_explore_docs(
         soe_explore_docs(path="/", action="search", query="agent")  # Find agent-related docs
     """
     # Normalize path
-    # Remove leading slash if present to match index keys (which are relative paths like 'docs/...')
+    # Remove leading slash if present to match index keys (which are relative paths like 'soe/docs/...')
     # But handle root '/' as well
     clean_path = path.strip("/")
 
-    # Special case: "/" means "docs/" (default root)
+    # Special case: "/" means the main docs directory
     if clean_path == "" or path == "/":
-        clean_path = "docs"
+        clean_path = "soe/docs"
 
     # Dispatch actions
     if action == "list":

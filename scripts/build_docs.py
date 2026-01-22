@@ -30,7 +30,7 @@ except ImportError:
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
 DOCS_SRC = PROJECT_ROOT / "docs_src"
-DOCS_OUT = PROJECT_ROOT / "docs"
+DOCS_OUT = PROJECT_ROOT / "soe" / "docs"
 TESTS_ROOT = PROJECT_ROOT / "tests"
 
 
