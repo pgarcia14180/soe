@@ -18,8 +18,8 @@ def build_response_model(
 
     root_schema = None
     if output_schema and isinstance(output_schema, type) and issubclass(output_schema, RootModel):
-        # Only return RootModel directly if no output_field is requested AND no signal selection needed
-        if not output_field and (not signal_options or len(signal_options) <= 1):
+        # Use RootModel directly if no signal selection is needed (standard case for single output)
+        if not signal_options or len(signal_options) <= 1:
             return output_schema
         root_schema = output_schema
     if output_field:
