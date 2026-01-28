@@ -15,6 +15,12 @@ from .soe_copy_context import create_soe_copy_context_tool
 from .soe_list_contexts import create_soe_list_contexts_tool
 from .soe_add_signal import create_soe_add_signal_tool
 from .soe_call_tool import create_soe_call_tool_tool
+from .soe_get_identities import create_soe_get_identities_tool
+from .soe_inject_identity import create_soe_inject_identity_tool
+from .soe_remove_identity import create_soe_remove_identity_tool
+from .soe_get_context_schema import create_soe_get_context_schema_tool
+from .soe_inject_context_schema_field import create_soe_inject_context_schema_field_tool
+from .soe_remove_context_schema_field import create_soe_remove_context_schema_field_tool
 
 # Registry of all available built-in tools
 BUILTIN_TOOLS = {
@@ -31,6 +37,12 @@ BUILTIN_TOOLS = {
     "soe_list_contexts": create_soe_list_contexts_tool,
     "soe_add_signal": create_soe_add_signal_tool,
     "soe_call_tool": create_soe_call_tool_tool,
+    "soe_get_identities": create_soe_get_identities_tool,
+    "soe_inject_identity": create_soe_inject_identity_tool,
+    "soe_remove_identity": create_soe_remove_identity_tool,
+    "soe_get_context_schema": create_soe_get_context_schema_tool,
+    "soe_inject_context_schema_field": create_soe_inject_context_schema_field_tool,
+    "soe_remove_context_schema_field": create_soe_remove_context_schema_field_tool,
 }
 
 

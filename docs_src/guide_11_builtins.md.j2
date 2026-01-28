@@ -49,19 +49,25 @@ Unlike custom tools that need a `tools_registry`, built-ins work immediately. SO
 
 | Built-in | Purpose | Documentation |
 |----------|---------|---------------|
-| `soe_explore_docs` | Make SOE self-aware by exploring its documentation | [explore_docs](builtins/explore_docs.md) |
+| `soe_explore_docs` | Make SOE self-aware by exploring its documentation | [explore_docs](builtins/soe_explore_docs.md) |
 | `soe_get_workflows` | Query registered workflow definitions | [workflows](builtins/workflows.md) |
 | `soe_inject_workflow` | Add new workflows at runtime | [workflows](builtins/workflows.md) |
 | `soe_inject_node` | Add or modify nodes in workflows | [workflows](builtins/workflows.md) |
 | `soe_remove_workflow` | Remove workflows from registry | [workflows](builtins/workflows.md) |
 | `soe_remove_node` | Remove nodes from workflows | [workflows](builtins/workflows.md) |
+| `soe_add_signal` | Add signals to node configurations | [workflows](builtins/workflows.md) |
 | `soe_get_context` | Read execution context | [context](builtins/context.md) |
 | `soe_update_context` | Modify execution context | [context](builtins/context.md) |
 | `soe_copy_context` | Clone context for parallel execution | [context](builtins/context.md) |
 | `soe_list_contexts` | Discover available contexts | [context](builtins/context.md) |
+| `soe_get_identities` | Query identity definitions | [identity](builtins/identity.md) |
+| `soe_inject_identity` | Add or update an identity | [identity](builtins/identity.md) |
+| `soe_remove_identity` | Remove an identity | [identity](builtins/identity.md) |
+| `soe_get_context_schema` | Query context schema | [context_schema](builtins/context_schema.md) |
+| `soe_inject_context_schema_field` | Add or update a schema field | [context_schema](builtins/context_schema.md) |
+| `soe_remove_context_schema_field` | Remove a schema field | [context_schema](builtins/context_schema.md) |
 | `soe_get_available_tools` | List all registered tools | [tools](builtins/tools.md) |
 | `soe_call_tool` | Invoke a tool by name dynamically | [tools](builtins/tools.md) |
-| `soe_add_signal` | Emit signals programmatically | [workflows](builtins/workflows.md) |
 
 ---
 
@@ -81,9 +87,11 @@ This pattern is the foundation for metacognitive workflows that can reason about
 
 Explore each built-in category in detail:
 
-- **[explore_docs](builtins/explore_docs.md)** — Self-awareness through documentation
+- **[explore_docs](builtins/soe_explore_docs.md)** — Self-awareness through documentation
 - **[workflows](builtins/workflows.md)** — Runtime workflow modification
 - **[context](builtins/context.md)** — Execution state management
+- **[identity](builtins/identity.md)** — Runtime identity management
+- **[context_schema](builtins/context_schema.md)** — Runtime schema management
 - **[tools](builtins/tools.md)** — Dynamic tool discovery and invocation
 
 ---

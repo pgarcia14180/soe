@@ -81,7 +81,7 @@ def test_soe_explore_docs_search_text():
     # Search for a common term like "workflow"
     result = soe_explore_docs(path="", action="search", query="workflow")
     assert not result.startswith("Error:")
-    assert "docs/" in result or "ai_docs/" in result
+    assert "docs/" in result
 
 def test_soe_explore_docs_search_tag():
     """Test tag search."""

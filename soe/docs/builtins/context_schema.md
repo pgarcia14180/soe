@@ -1,0 +1,158 @@
+
+# Built-in: Context Schema Management
+
+## Runtime Schema Control
+
+These built-in tools enable workflows to **manage context schemas at runtime**. Context schemas define the structure and types of context fields—querying, adding, and removing fields enables self-evolving data structures.
+
+---
+
+## Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| `soe_get_context_schema` | Query current context schema |
+| `soe_inject_context_schema_field` | Add or update a schema field |
+| `soe_remove_context_schema_field` | Remove a schema field |
+
+---
+
+## soe_get_context_schema
+
+Query the context schema for the current execution.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `field_name` | `Optional[str]` | `None` | Get a specific field's definition |
+
+### Return Values
+
+- **No parameters**: Returns full schema dict of `field_name -> field_definition`
+- **`field_name` provided**: Returns `{"field_name": "...", "definition": {...}}`
+- **Not found**: Returns `{"error": "...", "available": [...]}`
+
+### Use Cases
+
+- **Introspection** — Let LLMs understand expected data structure
+- **Validation** — Check schema before writing context
+- **Documentation** — Generate field descriptions dynamically
+
+---
+
+## soe_inject_context_schema_field
+
+Add or update a single field in the context schema.
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `field_name` | `str` | Name of the field to add/update |
+| `field_definition` | `str` | JSON or YAML string with field definition |
+
+### Field Definition Format
+
+```json
+{
+    "type": "string",
+    "description": "User's preferred language",
+    "required": false,
+    "default": "en"
+}
+```
+
+Or in YAML:
+
+```yaml
+type: object
+description: User preferences
+properties:
+  theme: string
+  language: string
+```
+
+### Return Value
+
+```python
+{
+    "success": True,
+    "field_name": "user_preferences",
+    "action": "created",  # or "updated"
+    "message": "Successfully created field 'user_preferences' in context schema"
+}
+```
+
+### Use Cases
+
+- **Dynamic schemas** — Add fields based on workflow needs
+- **Self-evolution** — Workflows define their own data structures
+- **Extension** — Add domain-specific fields at runtime
+
+---
+
+## soe_remove_context_schema_field
+
+Remove a single field from the context schema.
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `field_name` | `str` | Name of field to remove |
+
+### Return Value
+
+```python
+{
+    "removed": True,
+    "field_name": "deprecated_field",
+    "message": "Successfully removed field 'deprecated_field' from context schema"
+}
+```
+
+Raises `ValueError` if field not found.
+
+### Use Cases
+
+- **Cleanup** — Remove unused schema fields
+- **Refactoring** — Remove deprecated fields
+- **Evolution** — Replace outdated field definitions
+
+---
+
+## Schema Patterns
+
+### Self-Documenting Workflows
+
+A workflow that describes its own data requirements:
+
+
+```yaml
+self_documenting:
+  DescribeNeeds:
+    node_type: llm
+    event_triggers: [START]
+    prompt: "Based on task {{ context.task }}, what data fields do we need?"
+    output_field: needed_fields
+    event_emissions:
+      - signal_name: NEEDS_DESCRIBED
+
+  CreateSchema:
+    node_type: tool
+    event_triggers: [NEEDS_DESCRIBED]
+    tool_name: soe_inject_context_schema_field
+    context_parameter_field: schema_field_config
+    output_field: schema_result
+    event_emissions:
+      - signal_name: SCHEMA_READY
+```
+
+
+---
+
+## Related
+
+- [Built-in Tools Overview](../guide_11_builtins.md) — All available built-ins
+- [Context Schema Guide](../guide_06_schema.md) — Schema fundamentals

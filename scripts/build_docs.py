@@ -17,6 +17,7 @@ Output:
 import os
 import re
 import ast
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -148,6 +149,11 @@ def build_docs():
     """
     Build all documentation from Jinja2 templates.
     """
+    # Clean output directory for a fresh build
+    if DOCS_OUT.exists():
+        shutil.rmtree(DOCS_OUT)
+        print(f"Cleaned {DOCS_OUT}/")
+
     # Create output directory
     DOCS_OUT.mkdir(parents=True, exist_ok=True)
 
@@ -200,7 +206,7 @@ def build_docs():
 def build_index():
     """
     Builds a Python index of the documentation for the soe_explore_docs tool.
-    Scans docs/ and ai_docs/ for Markdown files, extracts sections and tags.
+    Scans docs/ for Markdown files, extracts sections and tags.
     """
     print("\nBuilding documentation index...")
 
@@ -211,13 +217,13 @@ def build_index():
     }
 
     # Directories to scan
-    scan_dirs = [DOCS_OUT, PROJECT_ROOT / "ai_docs"]
+    scan_dirs = [DOCS_OUT]
 
     for root_dir in scan_dirs:
         if not root_dir.exists():
             continue
 
-        root_name = root_dir.name # docs or ai_docs
+        root_name = root_dir.name
 
         # Add root dir to children
         index_data["root_children"].append(root_name + "/")
@@ -253,7 +259,7 @@ def build_index():
                     }
                     # Add to parent
                     if i == 0:
-                        # It's a top level dir (like docs/ or ai_docs/) - already handled or subfolder
+                        # It's a top level dir (like docs/) - already handled or subfolder
                         pass
                     else:
                          if prev_path in index_data["items"] and current_build_path not in index_data["items"][prev_path]["children"]:

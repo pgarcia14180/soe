@@ -1,0 +1,139 @@
+{# Built-in: Identity Management #}
+# Built-in: Identity Management
+
+## Runtime Identity Control
+
+These built-in tools enable workflows to **manage identities at runtime**. Identities define the system prompts for LLM personas—querying, adding, and removing them enables dynamic personality switching and self-evolving agents.
+
+---
+
+## Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| `soe_get_identities` | Query current identity definitions |
+| `soe_inject_identity` | Add or update an identity |
+| `soe_remove_identity` | Remove an identity |
+
+---
+
+## soe_get_identities
+
+Query identity definitions from the current execution.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `identity_name` | `Optional[str]` | `None` | Get a specific identity |
+| `list_only` | `bool` | `False` | Return only identity names |
+
+### Return Values
+
+- **No parameters**: Returns full dict of `identity_name -> system_prompt`
+- **`list_only=True`**: Returns `{"identity_names": ["assistant", "expert", ...]}`
+- **`identity_name` provided**: Returns `{"identity_name": "...", "system_prompt": "..."}`
+- **Not found**: Returns `{"error": "...", "available": [...]}`
+
+### Use Cases
+
+- **Introspection** — Let LLMs see available personas
+- **Decision making** — Choose identity based on task
+- **Debugging** — Inspect identity configuration
+
+---
+
+## soe_inject_identity
+
+Add or update a single identity definition.
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `identity_name` | `str` | Name/key for the identity |
+| `system_prompt` | `str` | The system prompt text |
+
+### Return Value
+
+```python
+{
+    "success": True,
+    "identity_name": "expert",
+    "action": "created",  # or "updated"
+    "message": "Successfully created identity 'expert'"
+}
+```
+
+### Use Cases
+
+- **Dynamic personas** — Create identities based on user needs
+- **Self-evolution** — Workflows define their own personas
+- **Specialization** — Add domain-specific identities at runtime
+
+---
+
+## soe_remove_identity
+
+Remove a single identity definition.
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `identity_name` | `str` | Name of identity to remove |
+
+### Return Value
+
+```python
+{
+    "removed": True,
+    "identity_name": "old_persona",
+    "message": "Successfully removed identity 'old_persona'"
+}
+```
+
+Raises `ValueError` if identity not found.
+
+### Use Cases
+
+- **Cleanup** — Remove unused personas
+- **Reset** — Clear identities before reconfiguration
+- **Evolution** — Replace outdated personas
+
+---
+
+## Identity Patterns
+
+### Dynamic Persona Selection
+
+A workflow that chooses its identity based on task:
+
+{% raw %}
+```yaml
+dynamic_persona:
+  AnalyzeTask:
+    node_type: llm
+    event_triggers: [START]
+    prompt: "Analyze this task and suggest a persona: {{ context.task }}"
+    output_field: suggested_persona
+    event_emissions:
+      - signal_name: PERSONA_SUGGESTED
+
+  CreatePersona:
+    node_type: tool
+    event_triggers: [PERSONA_SUGGESTED]
+    tool_name: soe_inject_identity
+    context_parameter_field: persona_config
+    output_field: identity_result
+    event_emissions:
+      - signal_name: PERSONA_READY
+```
+{% endraw %}
+
+---
+
+## Related
+
+- [Built-in Tools Overview](../guide_11_builtins.md) — All available built-ins
+- [Identity Guide](../guide_07_identity.md) — Identity fundamentals

@@ -29,6 +29,16 @@ from tests.test_cases.workflows.guide_builtins import (
     builtin_soe_call_tool,
     builtin_soe_get_available_tools,
     builtin_dynamic_tool_pattern,
+    builtin_soe_get_identities,
+    builtin_soe_get_identities_specific,
+    builtin_soe_inject_identity,
+    builtin_soe_remove_identity,
+    builtin_identity_management_pattern,
+    builtin_soe_get_context_schema,
+    builtin_soe_get_context_schema_field,
+    builtin_soe_inject_context_schema_field,
+    builtin_soe_remove_context_schema_field,
+    builtin_schema_management_pattern,
 )
 
 
@@ -713,5 +723,351 @@ def test_dynamic_tool_pattern():
     else:
         assert result.get("success") is True
         assert "Hello, SOE!" in str(result.get("result"))
+
+    backends.cleanup_all()
+
+
+# --- soe_get_identities Tests ---
+
+def test_soe_get_identities():
+    """
+    Built-in soe_get_identities returns identity definitions.
+    Identities are defined in the workflow config's identities section.
+    """
+    backends = create_test_backends("builtin_soe_get_identities")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_get_identities,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={},
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "identities_result" in context
+    identities = context["identities_result"][-1]
+    # Result may be dict or string
+    assert "assistant" in str(identities)
+    assert "expert" in str(identities)
+    assert "IDENTITIES_RETRIEVED" in signals
+
+    backends.cleanup_all()
+
+
+def test_soe_get_identities_specific():
+    """
+    Built-in soe_get_identities returns a specific identity.
+    Identities are defined in the workflow config's identities section.
+    """
+    backends = create_test_backends("builtin_soe_get_identities_specific")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_get_identities_specific,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "identity_params": {"identity_name": "assistant"}
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "identity_result" in context
+    result = context["identity_result"][-1]
+    # Result contains the specific identity
+    assert "assistant" in str(result)
+    assert "helpful" in str(result).lower()
+    assert "IDENTITY_RETRIEVED" in signals
+
+    backends.cleanup_all()
+
+
+def test_soe_inject_identity():
+    """
+    Built-in soe_inject_identity adds a new identity.
+    """
+    backends = create_test_backends("builtin_soe_inject_identity")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_inject_identity,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "identity_to_inject": {
+                "identity_name": "researcher",
+                "system_prompt": "You are a research assistant."
+            }
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "injection_result" in context
+    result = context["injection_result"][-1]
+    assert result["success"] is True
+    assert result["action"] == "created"
+    assert "IDENTITY_INJECTED" in signals
+
+    # Verify identity was actually saved
+    identities = backends.identity.get_identities(execution_id)
+    assert "researcher" in identities
+
+    backends.cleanup_all()
+
+
+def test_soe_remove_identity():
+    """
+    Built-in soe_remove_identity removes an identity.
+    Identities are defined in the workflow config's identities section.
+    """
+    backends = create_test_backends("builtin_soe_remove_identity")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_remove_identity,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "identity_to_remove": {"identity_name": "old_identity"}
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "removal_result" in context
+    result = context["removal_result"][-1]
+    # Result confirms removal
+    assert "removed" in str(result).lower() or "old_identity" in str(result)
+    assert "IDENTITY_REMOVED" in signals
+
+    # Verify identity was actually removed from backend
+    identities = backends.identity.get_identities(execution_id)
+    assert identities is None or "old_identity" not in identities
+
+    backends.cleanup_all()
+
+
+def test_identity_management_pattern():
+    """
+    Identity management pattern: inject then verify.
+    """
+    backends = create_test_backends("builtin_identity_pattern")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_identity_management_pattern,
+        initial_workflow_name="identity_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "new_identity": {
+                "identity_name": "analyst",
+                "system_prompt": "You are a data analyst."
+            }
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Both steps completed
+    assert "inject_result" in context
+    assert "all_identities" in context
+    assert "IDENTITY_CREATED" in signals
+    assert "IDENTITIES_VERIFIED" in signals
+
+    # Verify the new identity appears in the verification step
+    all_identities = context["all_identities"][-1]
+    assert "analyst" in all_identities
+
+    backends.cleanup_all()
+
+
+# --- soe_get_context_schema Tests ---
+
+def test_soe_get_context_schema():
+    """
+    Built-in soe_get_context_schema returns schema definitions.
+    Schema is defined in the workflow config's context_schema section.
+    """
+    backends = create_test_backends("builtin_soe_get_context_schema")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_get_context_schema,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={},
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "schema_result" in context
+    schema = context["schema_result"][-1]
+    # Result contains schema fields
+    assert "name" in str(schema)
+    assert "age" in str(schema)
+    assert "SCHEMA_RETRIEVED" in signals
+
+    backends.cleanup_all()
+
+
+def test_soe_get_context_schema_field():
+    """
+    Built-in soe_get_context_schema returns a specific field.
+    Schema is defined in the workflow config's context_schema section.
+    """
+    backends = create_test_backends("builtin_soe_get_context_schema_field")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_get_context_schema_field,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "schema_params": {"field_name": "name"}
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "field_result" in context
+    result = context["field_result"][-1]
+    # Result contains the specific field
+    assert "name" in str(result)
+    assert "string" in str(result).lower()
+    assert "FIELD_RETRIEVED" in signals
+
+    backends.cleanup_all()
+
+
+def test_soe_inject_context_schema_field():
+    """
+    Built-in soe_inject_context_schema_field adds a new field.
+    """
+    backends = create_test_backends("builtin_soe_inject_context_schema_field")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_inject_context_schema_field,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "field_to_inject": {
+                "field_name": "email",
+                "field_definition": '{"type": "string", "description": "User email"}'
+            }
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "injection_result" in context
+    result = context["injection_result"][-1]
+    assert result["success"] is True
+    assert result["action"] == "created"
+    assert "FIELD_INJECTED" in signals
+
+    # Verify field was actually saved
+    schema = backends.context_schema.get_context_schema(execution_id)
+    assert "email" in schema
+
+    backends.cleanup_all()
+
+
+def test_soe_remove_context_schema_field():
+    """
+    Built-in soe_remove_context_schema_field removes a field.
+    Schema is defined in the workflow config's context_schema section.
+    """
+    backends = create_test_backends("builtin_soe_remove_context_schema_field")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_remove_context_schema_field,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "field_to_remove": {"field_name": "old_field"}
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    assert "removal_result" in context
+    result = context["removal_result"][-1]
+    # Result confirms removal
+    assert "removed" in str(result).lower() or "old_field" in str(result)
+    assert "FIELD_REMOVED" in signals
+
+    # Verify field was actually removed from backend
+    schema = backends.context_schema.get_context_schema(execution_id)
+    assert schema is None or "old_field" not in schema
+
+    backends.cleanup_all()
+
+
+def test_schema_management_pattern():
+    """
+    Schema management pattern: inject field then verify.
+    """
+    backends = create_test_backends("builtin_schema_pattern")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_schema_management_pattern,
+        initial_workflow_name="schema_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "new_field": {
+                "field_name": "preferences",
+                "field_definition": '{"type": "object", "description": "User preferences"}'
+            }
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Both steps completed
+    assert "inject_result" in context
+    assert "full_schema" in context
+    assert "FIELD_CREATED" in signals
+    assert "SCHEMA_VERIFIED" in signals
+
+    # Verify the new field appears in the verification step
+    full_schema = context["full_schema"][-1]
+    assert "preferences" in full_schema
 
     backends.cleanup_all()

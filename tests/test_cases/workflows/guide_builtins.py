@@ -312,3 +312,193 @@ dynamic_tool_workflow:
     event_emissions:
       - signal_name: INVOCATION_COMPLETE
 """
+
+# --- Identity Management Tools ---
+
+# soe_get_identities - Query identity definitions
+builtin_soe_get_identities = """
+workflows:
+  example_workflow:
+    GetIdentities:
+      node_type: tool
+      event_triggers: [START]
+      tool_name: soe_get_identities
+      output_field: identities_result
+      event_emissions:
+        - signal_name: IDENTITIES_RETRIEVED
+
+identities:
+  assistant: "You are a helpful assistant."
+  expert: "You are an expert programmer."
+"""
+
+# soe_get_identities with specific identity
+builtin_soe_get_identities_specific = """
+workflows:
+  example_workflow:
+    GetSpecificIdentity:
+      node_type: tool
+      event_triggers: [START]
+      tool_name: soe_get_identities
+      context_parameter_field: identity_params
+      output_field: identity_result
+      event_emissions:
+        - signal_name: IDENTITY_RETRIEVED
+
+identities:
+  assistant: "You are a helpful assistant."
+  expert: "You are an expert programmer."
+"""
+
+# soe_inject_identity - Add or update an identity
+builtin_soe_inject_identity = """
+example_workflow:
+  InjectIdentity:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_inject_identity
+    context_parameter_field: identity_to_inject
+    output_field: injection_result
+    event_emissions:
+      - signal_name: IDENTITY_INJECTED
+"""
+
+# soe_remove_identity - Remove an identity
+builtin_soe_remove_identity = """
+workflows:
+  example_workflow:
+    RemoveIdentity:
+      node_type: tool
+      event_triggers: [START]
+      tool_name: soe_remove_identity
+      context_parameter_field: identity_to_remove
+      output_field: removal_result
+      event_emissions:
+        - signal_name: IDENTITY_REMOVED
+
+identities:
+  old_identity: "This will be removed."
+  keep_identity: "This stays."
+"""
+
+# Identity management pattern - inject then verify
+builtin_identity_management_pattern = """
+identity_workflow:
+  InjectNewIdentity:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_inject_identity
+    context_parameter_field: new_identity
+    output_field: inject_result
+    event_emissions:
+      - signal_name: IDENTITY_CREATED
+
+  VerifyIdentity:
+    node_type: tool
+    event_triggers: [IDENTITY_CREATED]
+    tool_name: soe_get_identities
+    output_field: all_identities
+    event_emissions:
+      - signal_name: IDENTITIES_VERIFIED
+"""
+
+# --- Context Schema Management Tools ---
+
+# soe_get_context_schema - Query context schema
+builtin_soe_get_context_schema = """
+workflows:
+  example_workflow:
+    GetSchema:
+      node_type: tool
+      event_triggers: [START]
+      tool_name: soe_get_context_schema
+      output_field: schema_result
+      event_emissions:
+        - signal_name: SCHEMA_RETRIEVED
+
+context_schema:
+  name:
+    type: string
+    description: "User name"
+  age:
+    type: integer
+    description: "User age"
+"""
+
+# soe_get_context_schema with specific field
+builtin_soe_get_context_schema_field = """
+workflows:
+  example_workflow:
+    GetSchemaField:
+      node_type: tool
+      event_triggers: [START]
+      tool_name: soe_get_context_schema
+      context_parameter_field: schema_params
+      output_field: field_result
+      event_emissions:
+        - signal_name: FIELD_RETRIEVED
+
+context_schema:
+  name:
+    type: string
+    description: "User name"
+  age:
+    type: integer
+    description: "User age"
+"""
+
+# soe_inject_context_schema_field - Add or update a schema field
+builtin_soe_inject_context_schema_field = """
+example_workflow:
+  InjectSchemaField:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_inject_context_schema_field
+    context_parameter_field: field_to_inject
+    output_field: injection_result
+    event_emissions:
+      - signal_name: FIELD_INJECTED
+"""
+
+# soe_remove_context_schema_field - Remove a schema field
+builtin_soe_remove_context_schema_field = """
+workflows:
+  example_workflow:
+    RemoveSchemaField:
+      node_type: tool
+      event_triggers: [START]
+      tool_name: soe_remove_context_schema_field
+      context_parameter_field: field_to_remove
+      output_field: removal_result
+      event_emissions:
+        - signal_name: FIELD_REMOVED
+
+context_schema:
+  old_field:
+    type: string
+    description: "This will be removed"
+  keep_field:
+    type: integer
+    description: "This stays"
+"""
+
+# Schema management pattern - inject then verify
+builtin_schema_management_pattern = """
+schema_workflow:
+  InjectNewField:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_inject_context_schema_field
+    context_parameter_field: new_field
+    output_field: inject_result
+    event_emissions:
+      - signal_name: FIELD_CREATED
+
+  VerifySchema:
+    node_type: tool
+    event_triggers: [FIELD_CREATED]
+    tool_name: soe_get_context_schema
+    output_field: full_schema
+    event_emissions:
+      - signal_name: SCHEMA_VERIFIED
+"""
