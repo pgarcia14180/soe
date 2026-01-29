@@ -115,6 +115,27 @@ example_workflow:
       - signal_name: CONTEXT_UPDATED
 """
 
+# soe_update_context then read - verifies field is properly stored as list
+builtin_soe_update_then_read = """
+example_workflow:
+  UpdateContext:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_update_context
+    context_parameter_field: context_updates
+    output_field: update_result
+    event_emissions:
+      - signal_name: CONTEXT_UPDATED
+
+  ReadUpdatedContext:
+    node_type: tool
+    event_triggers: [CONTEXT_UPDATED]
+    tool_name: soe_get_context
+    output_field: full_context
+    event_emissions:
+      - signal_name: CONTEXT_READ
+"""
+
 # soe_copy_context - Clone context for parallel execution
 builtin_soe_copy_context = """
 example_workflow:

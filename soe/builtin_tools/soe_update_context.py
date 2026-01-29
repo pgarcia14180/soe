@@ -5,6 +5,8 @@ Allows agents to write context fields dynamically.
 
 from typing import Any, Dict
 
+from ..lib.context_fields import set_field
+
 
 def create_soe_update_context_tool(backends, execution_id: str, tools_registry=None):
     """
@@ -41,9 +43,10 @@ def create_soe_update_context_tool(backends, execution_id: str, tools_registry=N
         if not filtered_updates:
             return {"status": "no valid updates (operational fields cannot be updated)"}
 
-        # Get current context and update
+        # Get current context and update using set_field for proper list wrapping
         context = backends.context.get_context(execution_id)
-        context.update(filtered_updates)
+        for field, value in filtered_updates.items():
+            set_field(context, field, value)
         backends.context.save_context(execution_id, context)
 
         return {

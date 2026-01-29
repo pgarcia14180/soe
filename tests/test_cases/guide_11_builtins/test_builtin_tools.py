@@ -39,6 +39,7 @@ from tests.test_cases.workflows.guide_builtins import (
     builtin_soe_inject_context_schema_field,
     builtin_soe_remove_context_schema_field,
     builtin_schema_management_pattern,
+    builtin_soe_update_then_read,
 )
 
 
@@ -1069,5 +1070,51 @@ def test_schema_management_pattern():
     # Verify the new field appears in the verification step
     full_schema = context["full_schema"][-1]
     assert "preferences" in full_schema
+
+    backends.cleanup_all()
+
+
+# --- soe_update_context BDD Test ---
+
+def test_soe_update_context_then_read():
+    """
+    BDD test: Update context then read it back.
+    This catches bugs where context fields aren't stored as lists.
+    """
+    backends = create_test_backends("builtin_update_then_read")
+    broadcast_signals_caller = setup_nodes(backends, tools_registry={})
+
+    execution_id = orchestrate(
+        config=builtin_soe_update_then_read,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "context_updates": {
+                "updates": {
+                    "new_field": "updated_value",
+                    "another_field": {"nested": "data"}
+                }
+            }
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Both nodes completed
+    assert "CONTEXT_UPDATED" in signals
+    assert "CONTEXT_READ" in signals
+
+    # The update result confirms success
+    assert "update_result" in context
+
+    # The get_context node successfully read context (proves fields are stored correctly)
+    assert "full_context" in context
+    full_context = context["full_context"][-1]
+    # The updated fields should be readable
+    assert "new_field" in str(full_context)
+    assert "updated_value" in str(full_context)
 
     backends.cleanup_all()

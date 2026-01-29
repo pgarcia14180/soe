@@ -197,6 +197,16 @@ def build_docs():
         except Exception as e:
             print(f"  ✗ {output_name}: {e}")
 
+    # Copy static files (non-.j2 files) from docs_src/ to output
+    print("\nCopying static files...")
+    for static_file in DOCS_SRC.rglob("*"):
+        if static_file.is_file() and not static_file.name.endswith(".j2"):
+            relative_path = static_file.relative_to(DOCS_SRC)
+            output_path = DOCS_OUT / relative_path
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(static_file, output_path)
+            print(f"  ✓ {relative_path} (static)")
+
     print(f"\nDocumentation built to {DOCS_OUT}/")
 
     # Build the index

@@ -5,6 +5,7 @@ Tests for update_context builtin tool.
 import pytest
 from soe.local_backends import create_in_memory_backends
 from soe.builtin_tools.soe_update_context import create_soe_update_context_tool
+from soe.lib.context_fields import get_field
 
 
 def test_update_context_single_field():
@@ -13,7 +14,7 @@ def test_update_context_single_field():
     backends = create_in_memory_backends()
 
     backends.context.save_context(execution_id, {
-        "existing": "old_value",
+        "existing": ["old_value"],
     })
 
     update_context = create_soe_update_context_tool(backends, execution_id)
@@ -23,10 +24,10 @@ def test_update_context_single_field():
     assert result["status"] == "updated"
     assert "new_field" in result["fields"]
 
-    # Verify context was actually updated
+    # Verify context was actually updated (fields are stored as lists)
     context = backends.context.get_context(execution_id)
-    assert context["new_field"] == "new_value"
-    assert context["existing"] == "old_value"
+    assert get_field(context, "new_field") == "new_value"
+    assert get_field(context, "existing") == "old_value"
 
 
 def test_update_context_multiple_fields():
@@ -48,18 +49,18 @@ def test_update_context_multiple_fields():
     assert set(result["fields"]) == {"field1", "field2", "field3"}
 
     context = backends.context.get_context(execution_id)
-    assert context["field1"] == "value1"
-    assert context["field2"] == "value2"
-    assert context["field3"] == 123
+    assert get_field(context, "field1") == "value1"
+    assert get_field(context, "field2") == "value2"
+    assert get_field(context, "field3") == 123
 
 
-def test_update_context_overwrites_existing():
-    """Test that updates overwrite existing fields."""
+def test_update_context_appends_to_existing():
+    """Test that updates append to existing fields (history)."""
     execution_id = "test_exec_id"
     backends = create_in_memory_backends()
 
     backends.context.save_context(execution_id, {
-        "field": "old_value",
+        "field": ["old_value"],
     })
 
     update_context = create_soe_update_context_tool(backends, execution_id)
@@ -69,7 +70,10 @@ def test_update_context_overwrites_existing():
     assert result["status"] == "updated"
 
     context = backends.context.get_context(execution_id)
-    assert context["field"] == "new_value"
+    # get_field returns the last value
+    assert get_field(context, "field") == "new_value"
+    # But history is preserved
+    assert context["field"] == ["old_value", "new_value"]
 
 
 def test_update_context_blocks_operational_fields():
@@ -125,5 +129,5 @@ def test_update_context_mixed_valid_and_operational():
     assert result["fields"] == ["valid_field"]
 
     context = backends.context.get_context(execution_id)
-    assert context["valid_field"] == "value"
+    assert get_field(context, "valid_field") == "value"
     assert "__internal__" not in context
