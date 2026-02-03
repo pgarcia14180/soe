@@ -57,7 +57,7 @@ This pattern is incredibly useful for:
 
 ## LLM Signal Selection (Resolution Step)
 
-When an LLM node has multiple signals with **conditions** (plain text, not Jinja), the LLM itself decides which signal to emit.
+When an LLM node has multiple signals with **conditions** (plain text, not Jinja), the LLM itself decides which signals to emit.
 
 ### The Workflow
 
@@ -69,8 +69,8 @@ When an LLM node has multiple signals with **conditions** (plain text, not Jinja
 
 1. The LLM analyzes the sentiment
 2. SOE sees multiple signals with plain-text conditions (no {% raw %}`{{ }}`{% endraw %})
-3. SOE asks the LLM: "Based on your analysis, which signal should be emitted?" using the conditions as descriptions
-4. The LLM returns the appropriate signal (POSITIVE, NEGATIVE, or NEUTRAL)
+3. SOE asks the LLM: "Select ALL signals that apply" using the conditions as descriptions
+4. The LLM returns a list of matching signals (can be none, one, or multiple)
 
 This is called the **resolution step** - it lets the LLM make routing decisions based on its understanding.
 
@@ -81,7 +81,7 @@ The `condition` field controls how signals are emitted:
 | Condition | Behavior |
 |-----------|----------|
 | **No condition** | Signal is always emitted |
-| **Plain text** | Semantic—LLM selects which signal to emit based on the description |
+| **Plain text** | Semantic—LLM selects any/all signals that apply based on the descriptions |
 | **Jinja template ({% raw %}`{{ }}`{% endraw %})** | Programmatic—evaluated against `context`, emits if truthy |
 
 **How SOE decides:**
@@ -89,7 +89,7 @@ The `condition` field controls how signals are emitted:
 1. **No conditions**: All signals emit unconditionally after node execution
 2. **Has conditions**: SOE checks if they contain {% raw %}`{{ }}`{% endraw %}:
    - **Yes (Jinja)**: Evaluate expression against `context`—emit if result is truthy
-   - **No (plain text)**: Ask LLM to choose which signal best matches its output
+   - **No (plain text)**: Ask LLM to select which signals apply (multi-select)
 
 ## Testing LLM Nodes
 

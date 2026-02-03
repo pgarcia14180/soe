@@ -122,7 +122,7 @@ example_workflow:
 
 Both `PROCESSING_DONE` and `LOG_EVENT` emit every time the node runs.
 
-> **Note**: For Router nodes, multiple unconditional signals all emit simultaneously (fan-out pattern). For LLM/Agent nodes with multiple signals, the LLM must select one - use Jinja conditions like `{{ true }}` if you want all signals to emit.
+> **Note**: For Router nodes, multiple unconditional signals all emit simultaneously (fan-out pattern). For LLM/Agent nodes with multiple signals, the LLM can select any/all that apply—including none.
 
 ### Mode 2: Jinja Template (Programmatic)
 
@@ -207,8 +207,9 @@ The behavior depends on the node type:
 │     └─ Zero signals? → Nothing emitted                       │
 │     └─ Single signal? → Emit unconditionally                 │
 │     └─ Multiple signals?                                     │
-│         └─ LLM selects ONE signal                            │
+│         └─ LLM selects ANY/ALL that apply                    │
 │            (uses conditions as semantic descriptions)        │
+│            (can select none, one, or multiple)               │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
@@ -300,7 +301,7 @@ example_workflow:
         condition: "The message is factual, neutral, or emotionally ambiguous"
 ```
 
-**LLM Selection Mechanism**: SOE adds a `selected_signal` field to the response model, forcing the LLM to choose from the options. The condition text serves as the description.
+**LLM Selection Mechanism**: SOE adds a `selected_signals` field to the response model, allowing the LLM to select any/all signals that apply. The condition text serves as the description.
 
 ---
 
@@ -627,26 +628,26 @@ When the child updates these keys, they're automatically copied to the parent's 
 
 ## LLM Signal Selection: Under the Hood
 
-When the LLM selects a signal, SOE:
+When the LLM selects signals, SOE:
 
-1. **Builds a response model** with a `selected_signal` field:
+1. **Builds a response model** with a `selected_signals` field (list):
    ```python
    class Response(BaseModel):
        response: str
-       selected_signal: Literal["POSITIVE", "NEGATIVE", "NEUTRAL"]
+       selected_signals: List[Literal["POSITIVE", "NEGATIVE", "NEUTRAL"]] = []
    ```
 
 2. **Provides descriptions** from the `condition` field:
    ```
-   Select one of these signals based on your response:
+   Select ALL signals that apply (can be none, one, or multiple):
    - POSITIVE: The message expresses positive sentiment
    - NEGATIVE: The message expresses negative sentiment
    - NEUTRAL: The message is neutral
    ```
 
-3. **Extracts the selection** and emits that signal.
+3. **Extracts the selection** and emits all selected signals (can be empty).
 
-This is why plain-text conditions are called "semantic"—the LLM understands the description and makes a judgment call.
+This is why plain-text conditions are called "semantic"—the LLM understands the descriptions and selects all that apply.
 
 ---
 

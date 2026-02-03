@@ -39,6 +39,58 @@ example_workflow:
 3.  **`output_field`**: Where to store the result in context.
 4.  **`event_emissions`**: Signals to emit after execution (conditions evaluate `result`).
 
+## Passing Parameters to Tools
+
+There are two ways to pass parameters to a tool: **inline parameters** (hardcoded in YAML) or **context parameters** (dynamic from context).
+
+### Option 1: Inline Parameters (Static)
+
+Use `parameters` to specify tool arguments directly in the workflow YAML:
+
+```yaml
+example_workflow:
+  ReadToolDocs:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_explore_docs
+    parameters:
+      path: "soe/docs/guide_01_tool.md"
+      action: "read"
+    output_field: tool_documentation
+    event_emissions:
+      - signal_name: DOCS_READY
+```
+
+**Jinja templates work in parameters:**
+
+```yaml
+example_workflow:
+  FetchUserData:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: fetch_data
+    parameters:
+      user_id: "&#123;&#123; context.current_user_id &#125;&#125;"
+      include_history: true
+    output_field: user_data
+    event_emissions:
+      - signal_name: DATA_FETCHED
+```
+
+### Option 2: Context Parameters (Dynamic)
+
+Use `context_parameter_field` when the parameters come from another node's output or initial context:
+
+```yaml
+example_workflow:
+  SendEmail:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: send_email
+    context_parameter_field: email_data
+    output_field: email_result
+```
+
 ### Understanding context_parameter_field
 
 The `context_parameter_field` specifies which context field contains the parameters to pass to your tool. This field must contain a dictionary that will be unpacked as keyword arguments.
