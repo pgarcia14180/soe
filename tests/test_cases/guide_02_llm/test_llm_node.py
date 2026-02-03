@@ -135,8 +135,8 @@ def test_llm_signal_selection():
     LLM selects which signal to emit based on plain-text conditions (resolution step)
     """
     def stub_llm(prompt: str, config: dict) -> str:
-        # LLM returns JSON with output field and selected signal
-        return '{"analysis": "The sentiment is very positive and happy.", "selected_signal": "POSITIVE"}'
+        # LLM returns JSON with output field and selected signals (list)
+        return '{"analysis": "The sentiment is very positive and happy.", "selected_signals": ["POSITIVE"]}'
 
     backends = create_test_backends("llm_signal_selection")
     call_llm = create_call_llm(stub=stub_llm)

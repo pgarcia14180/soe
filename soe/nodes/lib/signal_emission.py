@@ -39,7 +39,7 @@ def handle_llm_failure(
 
 
 def emit_completion_signals(
-    selected_signal: Optional[str],
+    selected_signals: List[str],
     node_config: Dict[str, Any],
     operational_state: OperationalState,
     broadcast_signals_caller: BroadcastSignalsCaller,
@@ -49,17 +49,16 @@ def emit_completion_signals(
     Emit signals after successful node completion.
 
     Signal emission priority:
-    1. LLM-selected signal (when multiple signals with plain-text conditions)
+    1. LLM-selected signals (when multiple signals with plain-text conditions)
     2. Jinja-conditioned emissions (evaluate {{ }} templates)
     3. Single unconditional signal (emit it)
-    4. Multiple signals without selection → error (shouldn't happen)
 
     The 'condition' field has dual purpose:
-    - Plain text: used as description for LLM signal selection
+    - Plain text: used as description for LLM signal selection (multi-select)
     - Jinja template ({{ }}): evaluated to determine if signal should emit
     """
-    if selected_signal:
-        broadcast_signals_caller(execution_id, [selected_signal])
+    if selected_signals:
+        broadcast_signals_caller(execution_id, selected_signals)
     elif operational_state.event_emissions:
         if has_jinja_conditions(operational_state.event_emissions):
             handle_signal_emission(
@@ -73,7 +72,4 @@ def emit_completion_signals(
             ]
             if len(signals) == 1:
                 broadcast_signals_caller(execution_id, signals)
-            elif len(signals) > 1:
-                raise RuntimeError(
-                    f"Multiple signals defined but no selection made: {signals}"
-                )
+            # Multiple signals with no selection = LLM chose none, which is valid

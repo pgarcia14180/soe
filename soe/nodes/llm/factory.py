@@ -12,7 +12,7 @@ from ..lib.signal_emission import emit_completion_signals, handle_llm_failure
 from ..lib.response_builder import (
     build_response_model,
     extract_output_from_response,
-    extract_signal_from_response,
+    extract_signals_from_response,
 )
 from ...types import CallLlm, BroadcastSignalsCaller, Backends, LlmNodeCaller, EventTypes
 from ...lib.register_event import register_event
@@ -80,10 +80,10 @@ def create_llm_node_caller(
                 rendered_prompt, str(output_value), backends
             )
 
-            selected_signal = extract_signal_from_response(raw_response)
+            selected_signals = extract_signals_from_response(raw_response)
 
             emit_completion_signals(
-                selected_signal=selected_signal,
+                selected_signals=selected_signals,
                 node_config=node_config,
                 operational_state=state,
                 broadcast_signals_caller=broadcast_signals_caller,

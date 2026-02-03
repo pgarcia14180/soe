@@ -166,7 +166,7 @@ def test_llm_signal_selection_failure():
     def stub_llm(prompt: str, config: dict) -> str:
         call_count["n"] += 1
         # Return a signal that is not OPTION_A or OPTION_B
-        return '{"analysis": "test", "selected_signal": "INVALID_OPTION"}'
+        return '{"analysis": "test", "selected_signals": ["INVALID_OPTION"]}'
 
     backends = create_test_backends("llm_signal_fail")
     call_llm = create_call_llm(stub=stub_llm)

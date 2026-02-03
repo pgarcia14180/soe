@@ -5,9 +5,8 @@ Dynamic Pydantic response model builder.
 from typing import Type, Any, Optional, List, Dict, Literal
 from pydantic import RootModel
 from pydantic import BaseModel, Field, create_model
-from typing import Type, Any, Optional, List, Dict, Literal
 
-from pydantic import RootModel
+
 def build_response_model(
     output_field: Optional[str] = None,
     output_schema: Optional[Type[BaseModel]] = None,
@@ -51,11 +50,11 @@ def build_response_model(
             else:
                 descriptions.append(f"- {s['name']}")
 
-        desc_text = "Select the most appropriate signal:\n" + "\n".join(descriptions)
+        desc_text = "Select ALL signals that apply (can be none, one, or multiple):\n" + "\n".join(descriptions)
 
-        fields["selected_signal"] = (
-            signal_literal,
-            Field(..., description=desc_text)
+        fields["selected_signals"] = (
+            List[signal_literal],
+            Field(default=[], description=desc_text)
         )
 
     model_name = "DynamicResponse"
@@ -81,11 +80,14 @@ def extract_output_from_response(
     return data.get("output")
 
 
-def extract_signal_from_response(response: BaseModel) -> Optional[str]:
+def extract_signals_from_response(response: BaseModel) -> List[str]:
     """
-    Extract the selected signal from a dynamic response model.
+    Extract the selected signals from a dynamic response model.
+    Returns a list of signal names (can be empty).
     """
     data = response.model_dump()
     if isinstance(data, dict):
-        return data.get("selected_signal")
-    return None
+        signals = data.get("selected_signals", [])
+        if isinstance(signals, list):
+            return signals
+    return []

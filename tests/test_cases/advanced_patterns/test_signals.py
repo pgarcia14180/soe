@@ -32,6 +32,8 @@ from tests.test_cases.workflows.appendix_c_signals import (
     EXCLUSIVE_ROUTING,
     FAN_OUT_SIGNALS,
     COMPREHENSIVE_SIGNAL_EXAMPLE,
+    LLM_MULTI_SIGNAL_SELECTION,
+    LLM_ZERO_SIGNAL_SELECTION,
 )
 
 
@@ -175,8 +177,8 @@ class TestSemanticSelection:
     def test_llm_selects_positive_sentiment(self):
         """LLM selects POSITIVE_SENTIMENT based on semantic understanding."""
         def stub_llm(prompt, config):
-            # LLM sees signal options and selects one
-            return '{"sentiment_analysis": "The message is happy", "selected_signal": "POSITIVE_SENTIMENT"}'
+            # LLM sees signal options and selects one (as list)
+            return '{"sentiment_analysis": "The message is happy", "selected_signals": ["POSITIVE_SENTIMENT"]}'
 
         backends = create_test_backends("semantic_positive")
         call_llm = create_call_llm(stub=stub_llm)
@@ -202,7 +204,7 @@ class TestSemanticSelection:
     def test_llm_selects_negative_sentiment(self):
         """LLM selects NEGATIVE_SENTIMENT based on semantic understanding."""
         def stub_llm(prompt, config):
-            return '{"sentiment_analysis": "The message is angry", "selected_signal": "NEGATIVE_SENTIMENT"}'
+            return '{"sentiment_analysis": "The message is angry", "selected_signals": ["NEGATIVE_SENTIMENT"]}'
 
         backends = create_test_backends("semantic_negative")
         call_llm = create_call_llm(stub=stub_llm)
@@ -687,5 +689,133 @@ class TestComprehensiveExample:
         assert "WORKFLOW_ERROR" in signals
         # Should not reach confirmation
         assert "ORDER_COMPLETE" not in signals
+
+        backends.cleanup_all()
+
+
+class TestMultiSignalSelection:
+    """LLM can select multiple signals semantically in a single request."""
+
+    def test_llm_selects_multiple_signals(self):
+        """
+        LLM selects multiple signals when multiple topics apply.
+        """
+        def stub_llm(prompt: str, config: dict) -> str:
+            # LLM determines both TOOL_DOCS and LLM_DOCS are relevant
+            return '{"routing_analysis": "This question is about both tools and LLM nodes.", "selected_signals": ["NEED_TOOL_DOCS", "NEED_LLM_DOCS"]}'
+
+        backends = create_test_backends("multi_signal_multiple")
+        call_llm = create_call_llm(stub=stub_llm)
+        nodes, broadcast_signals_caller = create_llm_nodes(backends, call_llm)
+
+        execution_id = orchestrate(
+            config=LLM_MULTI_SIGNAL_SELECTION,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"question": "How do I call a Python function from an LLM node?"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        signals = extract_signals(backends, execution_id)
+
+        # Both signals should be emitted
+        assert "NEED_TOOL_DOCS" in signals
+        assert "NEED_LLM_DOCS" in signals
+        # Router not selected
+        assert "NEED_ROUTER_DOCS" not in signals
+        # Both handlers should have run
+        assert signals.count("DOCS_FETCHED") == 2
+
+        backends.cleanup_all()
+
+    def test_llm_selects_single_signal(self):
+        """
+        LLM can still select just one signal when only one applies.
+        """
+        def stub_llm(prompt: str, config: dict) -> str:
+            return '{"routing_analysis": "This is only about routers.", "selected_signals": ["NEED_ROUTER_DOCS"]}'
+
+        backends = create_test_backends("multi_signal_single")
+        call_llm = create_call_llm(stub=stub_llm)
+        nodes, broadcast_signals_caller = create_llm_nodes(backends, call_llm)
+
+        execution_id = orchestrate(
+            config=LLM_MULTI_SIGNAL_SELECTION,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"question": "How do conditional signals work in routers?"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        signals = extract_signals(backends, execution_id)
+
+        # Only router signal emitted
+        assert "NEED_ROUTER_DOCS" in signals
+        assert "NEED_TOOL_DOCS" not in signals
+        assert "NEED_LLM_DOCS" not in signals
+
+        backends.cleanup_all()
+
+    def test_llm_selects_all_signals(self):
+        """
+        LLM can select all signals when all topics apply.
+        """
+        def stub_llm(prompt: str, config: dict) -> str:
+            return '{"routing_analysis": "This covers everything.", "selected_signals": ["NEED_TOOL_DOCS", "NEED_LLM_DOCS", "NEED_ROUTER_DOCS"]}'
+
+        backends = create_test_backends("multi_signal_all")
+        call_llm = create_call_llm(stub=stub_llm)
+        nodes, broadcast_signals_caller = create_llm_nodes(backends, call_llm)
+
+        execution_id = orchestrate(
+            config=LLM_MULTI_SIGNAL_SELECTION,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"question": "Give me an overview of all node types"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        signals = extract_signals(backends, execution_id)
+
+        # All three signals emitted
+        assert "NEED_TOOL_DOCS" in signals
+        assert "NEED_LLM_DOCS" in signals
+        assert "NEED_ROUTER_DOCS" in signals
+        # All handlers ran
+        assert signals.count("DOCS_FETCHED") == 3
+
+        backends.cleanup_all()
+
+    def test_llm_selects_zero_signals(self):
+        """
+        LLM can select no signals when none apply - this is valid, not an error.
+        """
+        def stub_llm(prompt: str, config: dict) -> str:
+            # LLM determines neither condition applies
+            return '{"categorization": "This is just a casual greeting.", "selected_signals": []}'
+
+        backends = create_test_backends("multi_signal_zero")
+        call_llm = create_call_llm(stub=stub_llm)
+        nodes, broadcast_signals_caller = create_llm_nodes(backends, call_llm)
+
+        execution_id = orchestrate(
+            config=LLM_ZERO_SIGNAL_SELECTION,
+            initial_workflow_name="example_workflow",
+            initial_signals=["START"],
+            initial_context={"input": "Hello, how are you?"},
+            backends=backends,
+            broadcast_signals_caller=broadcast_signals_caller,
+        )
+
+        signals = extract_signals(backends, execution_id)
+
+        # No signals selected - neither IS_URGENT nor IS_IMPORTANT
+        assert "IS_URGENT" not in signals
+        assert "IS_IMPORTANT" not in signals
+        # Workflow completed without error (no DONE signal since no handler triggered)
+        assert "DONE" not in signals
 
         backends.cleanup_all()

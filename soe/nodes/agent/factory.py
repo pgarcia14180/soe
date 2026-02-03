@@ -97,7 +97,7 @@ def create_agent_node_caller(
                         operational_state.context[operational_state.output_field] = [final_response.output]
 
                 emit_completion_signals(
-                    selected_signal=final_response.selected_signal,
+                    selected_signals=final_response.selected_signals,
                     node_config=node_config,
                     operational_state=operational_state,
                     broadcast_signals_caller=broadcast_signals_caller,

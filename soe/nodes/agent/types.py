@@ -63,4 +63,4 @@ class ResponseStageInput(BaseModel):
 class FinalResponse(BaseModel):
     """Standardized output from the Response stage."""
     output: Any
-    selected_signal: Optional[str] = None
+    selected_signals: List[str] = []

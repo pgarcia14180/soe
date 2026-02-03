@@ -434,3 +434,69 @@ order_processing:
     event_emissions:
       - signal_name: ORDER_COMPLETE
 """
+
+# =============================================================================
+# MULTI-SIGNAL SEMANTIC SELECTION (LLM selects multiple)
+# =============================================================================
+
+# LLM selects multiple signals based on semantic understanding
+LLM_MULTI_SIGNAL_SELECTION = """
+example_workflow:
+  DocRouter:
+    node_type: llm
+    event_triggers: [START]
+    prompt: "Analyze the user's question and determine which documentation topics are relevant: {{ context.question }}"
+    output_field: routing_analysis
+    event_emissions:
+      - signal_name: NEED_TOOL_DOCS
+        condition: "Question is about Tool nodes, Python functions, or executing code"
+      - signal_name: NEED_LLM_DOCS
+        condition: "Question is about LLM nodes, prompts, or model calls"
+      - signal_name: NEED_ROUTER_DOCS
+        condition: "Question is about Router nodes, conditional branching, or signal routing"
+
+  FetchToolDocs:
+    node_type: router
+    event_triggers: [NEED_TOOL_DOCS]
+    event_emissions:
+      - signal_name: DOCS_FETCHED
+
+  FetchLLMDocs:
+    node_type: router
+    event_triggers: [NEED_LLM_DOCS]
+    event_emissions:
+      - signal_name: DOCS_FETCHED
+
+  FetchRouterDocs:
+    node_type: router
+    event_triggers: [NEED_ROUTER_DOCS]
+    event_emissions:
+      - signal_name: DOCS_FETCHED
+"""
+
+# LLM selects zero signals (none apply)
+LLM_ZERO_SIGNAL_SELECTION = """
+example_workflow:
+  CategoryRouter:
+    node_type: llm
+    event_triggers: [START]
+    prompt: "Categorize this input: {{ context.input }}"
+    output_field: categorization
+    event_emissions:
+      - signal_name: IS_URGENT
+        condition: "The input requires immediate attention"
+      - signal_name: IS_IMPORTANT
+        condition: "The input is significant but not time-sensitive"
+
+  HandleUrgent:
+    node_type: router
+    event_triggers: [IS_URGENT]
+    event_emissions:
+      - signal_name: DONE
+
+  HandleImportant:
+    node_type: router
+    event_triggers: [IS_IMPORTANT]
+    event_emissions:
+      - signal_name: DONE
+"""

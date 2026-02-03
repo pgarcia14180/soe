@@ -4,7 +4,7 @@ from ...lib.llm_resolver import resolve_llm_call
 from ...lib.response_builder import (
     build_response_model,
     extract_output_from_response,
-    extract_signal_from_response,
+    extract_signals_from_response,
 )
 from ....types import CallLlm
 from ..types import ResponseStageInput, FinalResponse
@@ -46,9 +46,9 @@ def execute_response_stage(
     )
 
     output_value = extract_output_from_response(raw_response, output_field)
-    selected_signal = extract_signal_from_response(raw_response)
+    selected_signals = extract_signals_from_response(raw_response)
 
     return FinalResponse(
         output=output_value,
-        selected_signal=selected_signal,
+        selected_signals=selected_signals,
     )
