@@ -63,6 +63,12 @@ example_workflow:
     output_field: email_result
 ```
 
+    You cannot use both `parameters` and `context_parameter_field` on the same node. Choose one approach:
+
+    - Use **`parameters`** for static values known at design time
+    - Use **`context_parameter_field`** for dynamic values from context
+    - Use **neither** for tools that take no arguments
+
 ### Understanding context_parameter_field
 
 The `context_parameter_field` specifies which context field contains the parameters to pass to your tool. This field must contain a dictionary that will be unpacked as keyword arguments.
