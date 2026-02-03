@@ -44,6 +44,7 @@ Complete reference for all node configuration parameters across all node types.
 |-----------|------|--------|-----|-------|------|-------|-------------|
 | `tool_name` | `str` | ✗ | ✗ | ✗ | **R** | ✗ | Tool to execute from registry |
 | `tools` | `List[str]` | ✗ | ✗ | **O** | ✗ | ✗ | Tool names available to agent |
+| `parameters` | `Dict` | ✗ | ✗ | ✗ | **O** | ✗ | Inline tool kwargs (supports Jinja) |
 | `context_parameter_field` | `str` | ✗ | ✗ | ✗ | **O** | ✗ | Context field containing tool kwargs |
 
 ### Child Workflow Parameters

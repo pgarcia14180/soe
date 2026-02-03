@@ -42,8 +42,14 @@ def get_operational_state(
         tool_name, tools_registry, execution_id, backends
     )
 
+    # Priority: 1) inline parameters, 2) context_parameter_field, 3) empty dict
+    inline_parameters = node_config.get("parameters")
     context_parameter_field = node_config.get("context_parameter_field")
-    if context_parameter_field and context_parameter_field in context:
+
+    if inline_parameters is not None:
+        # Inline parameters from YAML - render any Jinja templates
+        parameters = _render_parameters(inline_parameters, context)
+    elif context_parameter_field and context_parameter_field in context:
         if process_accumulated:
             raw_params = context[context_parameter_field]
         else:
@@ -64,3 +70,17 @@ def get_operational_state(
         parameters=parameters,
         process_accumulated=process_accumulated,
     )
+
+
+def _render_parameters(params: Any, context: Dict[str, Any]) -> Any:
+    """Render Jinja templates in parameter values."""
+    from ...lib.jinja_render import render_prompt
+
+    if isinstance(params, dict):
+        return {k: _render_parameters(v, context) for k, v in params.items()}
+    elif isinstance(params, list):
+        return [_render_parameters(item, context) for item in params]
+    elif isinstance(params, str) and "{{" in params:
+        rendered, _ = render_prompt(params, context)
+        return rendered
+    return params

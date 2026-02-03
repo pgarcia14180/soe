@@ -101,3 +101,33 @@ example_workflow:
       - signal_name: LARGE_PAYMENT_SUCCESS
         condition: "{{ result.status == 'approved' and context.payment_data.amount > 1000 }}"
 """
+
+# Tool with inline parameters (static values)
+tool_inline_parameters = """
+example_workflow:
+  ReadToolDocs:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: soe_explore_docs
+    parameters:
+      path: "soe/docs/guide_01_tool.md"
+      action: "read"
+    output_field: tool_documentation
+    event_emissions:
+      - signal_name: DOCS_READY
+"""
+
+# Tool with inline parameters using Jinja templates
+tool_inline_parameters_jinja = """
+example_workflow:
+  FetchUserData:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: fetch_data
+    parameters:
+      user_id: "{{ context.current_user_id }}"
+      include_history: true
+    output_field: user_data
+    event_emissions:
+      - signal_name: DATA_FETCHED
+"""

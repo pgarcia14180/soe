@@ -18,6 +18,8 @@ from tests.test_cases.workflows.guide_tool import (
     tool_with_routing,
     tool_chain,
     tool_result_and_context_conditions,
+    tool_inline_parameters,
+    tool_inline_parameters_jinja,
 )
 
 # --- Tool Definitions ---
@@ -261,5 +263,91 @@ def test_tool_conditions_context_not_matching():
     # Context-based conditions should NOT match
     assert "VIP_PAYMENT_SUCCESS" not in signals
     assert "LARGE_PAYMENT_SUCCESS" not in signals
+
+    backends.cleanup_all()
+
+
+def soe_explore_docs(path: str, action: str) -> dict:
+    """Stub for soe_explore_docs tool."""
+    return {"content": f"Documentation content from {path}", "action": action}
+
+
+def fetch_data_by_user(user_id: str, include_history: bool) -> dict:
+    """Stub for fetch_data tool with user parameters."""
+    return {
+        "user_id": user_id,
+        "include_history": include_history,
+        "data": {"name": "Test User", "email": "test@example.com"}
+    }
+
+
+def test_tool_inline_parameters():
+    """
+    Tool node with inline parameters (static values defined in YAML).
+    Parameters are passed directly without needing context_parameter_field.
+    """
+    backends = create_test_backends("tool_inline_params")
+
+    tools_registry = {
+        "soe_explore_docs": soe_explore_docs,
+    }
+
+    nodes, broadcast_signals_caller = create_tool_nodes(backends, tools_registry)
+
+    execution_id = orchestrate(
+        config=tool_inline_parameters,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={},  # No context needed - params are inline
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Tool executed with inline parameters
+    assert "DOCS_READY" in signals
+    assert "tool_documentation" in context
+    assert "guide_01_tool.md" in context["tool_documentation"][-1]["content"]
+    assert context["tool_documentation"][-1]["action"] == "read"
+
+    backends.cleanup_all()
+
+
+def test_tool_inline_parameters_with_jinja():
+    """
+    Tool node with inline parameters that use Jinja templates.
+    Jinja templates in parameters are evaluated against context.
+    """
+    backends = create_test_backends("tool_inline_params_jinja")
+
+    tools_registry = {
+        "fetch_data": fetch_data_by_user,
+    }
+
+    nodes, broadcast_signals_caller = create_tool_nodes(backends, tools_registry)
+
+    execution_id = orchestrate(
+        config=tool_inline_parameters_jinja,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={
+            "current_user_id": "user_12345"  # This will be templated into parameters
+        },
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Tool executed with Jinja-templated parameters
+    assert "DATA_FETCHED" in signals
+    assert "user_data" in context
+    # Jinja template was resolved from context
+    assert context["user_data"][-1]["user_id"] == "user_12345"
+    # Static boolean was passed through
+    assert context["user_data"][-1]["include_history"] is True
 
     backends.cleanup_all()

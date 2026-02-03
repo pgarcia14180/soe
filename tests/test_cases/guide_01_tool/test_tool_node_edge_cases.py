@@ -7,6 +7,7 @@ This test suite covers edge cases and failure modes for Tool nodes:
 - Invalid parameter types
 - Tools without event_emissions
 - Condition evaluation errors
+- Inline parameters (new feature)
 """
 
 import pytest
@@ -23,6 +24,34 @@ example_workflow:
     event_triggers: [START]
     tool_name: my_tool
     context_parameter_field: params
+    output_field: result
+    event_emissions:
+      - signal_name: SUCCESS
+"""
+
+workflow_inline_parameters = """
+example_workflow:
+  ExecuteToolInline:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: my_tool
+    parameters:
+      name: "hardcoded_name"
+      count: 42
+    output_field: result
+    event_emissions:
+      - signal_name: SUCCESS
+"""
+
+workflow_inline_parameters_with_jinja = """
+example_workflow:
+  ExecuteToolInlineJinja:
+    node_type: tool
+    event_triggers: [START]
+    tool_name: my_tool
+    parameters:
+      name: "{{ context.user_name }}"
+      count: 10
     output_field: result
     event_emissions:
       - signal_name: SUCCESS
@@ -237,5 +266,79 @@ def test_tool_condition_evaluation_error():
     assert "result" in context
     # Condition failed silently - no SUCCESS signal
     assert "SUCCESS" not in signals
+
+    backends.cleanup_all()
+
+
+# --- Inline Parameters Tests ---
+
+def test_inline_parameters():
+    """
+    Tool nodes can specify parameters directly in YAML instead of from context.
+    The 'parameters' field provides inline kwargs to the tool function.
+    """
+    def my_tool(name: str, count: int) -> dict:
+        return {"processed": name, "count": count}
+
+    backends = create_test_backends("tool_inline_params")
+
+    tools_registry = {
+        "my_tool": my_tool,
+    }
+
+    nodes, broadcast_signals_caller = create_tool_nodes(backends, tools_registry)
+
+    execution_id = orchestrate(
+        config=workflow_inline_parameters,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={},  # No context params needed - using inline
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Tool executed with inline parameters
+    assert context["result"][-1]["processed"] == "hardcoded_name"
+    assert context["result"][-1]["count"] == 42
+    assert "SUCCESS" in signals
+
+    backends.cleanup_all()
+
+
+def test_inline_parameters_with_jinja():
+    """
+    Inline parameters support Jinja templates to reference context values.
+    This enables dynamic parameters with static structure.
+    """
+    def my_tool(name: str, count: int) -> dict:
+        return {"processed": name, "count": count}
+
+    backends = create_test_backends("tool_inline_params_jinja")
+
+    tools_registry = {
+        "my_tool": my_tool,
+    }
+
+    nodes, broadcast_signals_caller = create_tool_nodes(backends, tools_registry)
+
+    execution_id = orchestrate(
+        config=workflow_inline_parameters_with_jinja,
+        initial_workflow_name="example_workflow",
+        initial_signals=["START"],
+        initial_context={"user_name": "Alice"},  # Jinja will reference this
+        backends=backends,
+        broadcast_signals_caller=broadcast_signals_caller,
+    )
+
+    context = backends.context.get_context(execution_id)
+    signals = extract_signals(backends, execution_id)
+
+    # Tool executed with Jinja-rendered parameters
+    assert context["result"][-1]["processed"] == "Alice"
+    assert context["result"][-1]["count"] == 10
+    assert "SUCCESS" in signals
 
     backends.cleanup_all()

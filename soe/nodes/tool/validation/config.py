@@ -108,6 +108,21 @@ def validate_node_config(node_config: Dict[str, Any]) -> None:
                 "'output_field' cannot be '__operational__' - this is a reserved system field"
             )
 
+    # Validate parameters field (inline tool parameters)
+    parameters = node_config.get("parameters")
+    if parameters is not None:
+        if not isinstance(parameters, dict):
+            raise WorkflowValidationError(
+                "'parameters' must be a dict - the kwargs to pass to the tool"
+            )
+
+    # Cannot have both parameters and context_parameter_field
+    context_parameter_field = node_config.get("context_parameter_field")
+    if parameters is not None and context_parameter_field is not None:
+        raise WorkflowValidationError(
+            "Cannot specify both 'parameters' and 'context_parameter_field' - use one or the other"
+        )
+
 
 def validate_tool_node_config(
     node_config: Dict[str, Any], tools_registry: ToolsRegistry
