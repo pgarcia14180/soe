@@ -37,6 +37,33 @@ def _get_verbose_flags() -> Set[str]:
     return set(flag.strip() for flag in verbose.split(","))
 
 
+def _validate_stub_response(result: Any) -> str:
+    """
+    Validate that a stub returns a valid JSON string.
+
+    This ensures tests exercise the full Pydantic parsing pipeline.
+    If a stub returns a Pydantic object or invalid JSON, tests will fail
+    immediately rather than silently passing.
+    """
+    if not isinstance(result, str):
+        raise TypeError(
+            f"Stub must return a JSON string, got {type(result).__name__}. "
+            f"If returning a Pydantic model, use .model_dump_json() instead. "
+            f"Value: {result!r}"
+        )
+
+    # Validate it's parseable JSON
+    try:
+        json.loads(result)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Stub returned invalid JSON: {e}. "
+            f"Response: {result[:200]}..."
+        ) from e
+
+    return result
+
+
 def _wrap_with_verbose(call_llm_fn: Callable) -> Callable:
     """Wrap call_llm with verbose logging if enabled"""
 
@@ -57,6 +84,16 @@ def _wrap_with_verbose(call_llm_fn: Callable) -> Callable:
         return result
 
     return wrapped
+
+
+def _wrap_stub_with_validation(stub: Callable) -> Callable:
+    """Wrap a stub to validate it returns valid JSON strings."""
+
+    def validated_stub(prompt: str, config: Dict[str, Any]) -> str:
+        result = stub(prompt, config)
+        return _validate_stub_response(result)
+
+    return validated_stub
 
 
 def create_call_llm(
@@ -94,7 +131,10 @@ def create_call_llm(
         else:
             return _wrap_with_verbose(_create_copilot_caller(model))
     elif stub:
-        return _wrap_with_verbose(stub)
+        # Wrap stub with validation to ensure it returns valid JSON strings
+        # This guarantees tests exercise the full Pydantic parsing pipeline
+        validated_stub = _wrap_stub_with_validation(stub)
+        return _wrap_with_verbose(validated_stub)
     else:
         raise ValueError("Either stub or model must be provided")
 
