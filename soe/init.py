@@ -62,7 +62,13 @@ def create_all_nodes(
 
         tools_list = []
         if tools_registry:
-            tools_list = [{"function": func, "max_retries": 0} for func in tools_registry.values()]
+            for entry in tools_registry.values():
+                if callable(entry):
+                    # Simple function format: {"name": function}
+                    tools_list.append({"function": entry, "max_retries": 0})
+                elif isinstance(entry, dict) and "function" in entry:
+                    # Full config format: {"name": {"function": fn, ...}}
+                    tools_list.append(entry)
         nodes["agent"] = create_agent_node_caller(backends, tools_list, call_llm, broadcast_signals_caller)
 
     if tools_registry is not None:

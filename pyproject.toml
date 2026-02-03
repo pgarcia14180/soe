@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "soe-ai"
-version = "0.2.0b2"
+version = "0.2.0b4"
 description = "Signal-driven Orchestration Engine - Agent orchestration with event-driven workflow engine"
 readme = "README.md"
 requires-python = ">=3.8"

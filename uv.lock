@@ -2073,7 +2073,7 @@ wheels = [
 
 [[package]]
 name = "soe-ai"
-version = "0.2.0b2"
+version = "0.2.0b4"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
