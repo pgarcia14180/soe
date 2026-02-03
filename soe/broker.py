@@ -4,15 +4,18 @@ from .types import Backends, BroadcastSignalsCaller, NodeCaller, EventTypes, Wor
 from .lib.register_event import register_event
 from .lib.yaml_parser import parse_yaml
 from .lib.operational import add_operational_state
-from .lib.context_fields import set_field
 from .lib.parent_sync import get_signals_for_parent
 from .lib.inheritance import (
     inherit_config,
-    inherit_context,
     extract_and_save_config_sections,
+    prepare_initial_context,
 )
-from .validation import validate_config, validate_operational, validate_orchestrate_params
-from .types import WorkflowValidationError
+from .validation import (
+    validate_config,
+    validate_operational,
+    validate_orchestrate_params,
+    validate_initial_workflow,
+)
 
 
 def orchestrate(
@@ -70,17 +73,15 @@ def orchestrate(
 
     id = str(uuid4())
 
+    parsed_registry = {}
     if inherit_config_from_id:
         register_event(
             backends, id, EventTypes.CONFIG_INHERITANCE_START,
             {"source_execution_id": inherit_config_from_id}
         )
         parsed_registry = inherit_config(inherit_config_from_id, id, backends)
-        if config:
-            validate_config(config)
-            parsed_config = parse_yaml(config)
-            parsed_registry = extract_and_save_config_sections(parsed_config, id, backends)
-    else:
+
+    if config:
         validate_config(config)
         parsed_config = parse_yaml(config)
         parsed_registry = extract_and_save_config_sections(parsed_config, id, backends)
@@ -92,32 +93,13 @@ def orchestrate(
 
     backends.workflow.save_workflows_registry(id, parsed_registry)
 
-    if initial_workflow_name not in parsed_registry:
-        available = list(parsed_registry.keys())
-        raise WorkflowValidationError(
-            f"Workflow '{initial_workflow_name}' not found in config. "
-            f"Available workflows: {available}"
-        )
+    validate_initial_workflow(initial_workflow_name, parsed_registry)
 
     backends.workflow.save_current_workflow_name(id, initial_workflow_name)
 
-    if inherit_context_from_id:
-        register_event(
-            backends, id, EventTypes.CONTEXT_INHERITANCE_START,
-        )
-        context = inherit_context(inherit_context_from_id, backends)
-        if initial_context:
-            register_event(
-                backends, id, EventTypes.CONTEXT_MERGE,
-                {"fields": list(initial_context.keys())}
-            )
-            for field, value in initial_context.items():
-                set_field(context, field, value)
-    else:
-        context = {
-            k: [v] if not k.startswith("__") else v
-            for k, v in initial_context.items()
-        }
+    context = prepare_initial_context(
+        id, initial_context, backends, inherit_context_from_id
+    )
 
     context = add_operational_state(id, context)
     backends.context.save_context(id, context)

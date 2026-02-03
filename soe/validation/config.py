@@ -193,3 +193,25 @@ def validate_orchestrate_params(
         raise WorkflowValidationError(
             "'initial_workflow_name' must be a non-empty string"
         )
+
+
+def validate_initial_workflow(
+    initial_workflow_name: str,
+    parsed_registry: Dict[str, Any],
+) -> None:
+    """
+    Validate that the initial workflow exists in the registry.
+
+    Args:
+        initial_workflow_name: Name of workflow to start with
+        parsed_registry: Dictionary of available workflows
+
+    Raises:
+        WorkflowValidationError: If workflow not found
+    """
+    if initial_workflow_name not in parsed_registry:
+        available = list(parsed_registry.keys())
+        raise WorkflowValidationError(
+            f"Workflow '{initial_workflow_name}' not found in config. "
+            f"Available workflows: {available}"
+        )

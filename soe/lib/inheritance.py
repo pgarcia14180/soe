@@ -12,7 +12,9 @@ Used for workflow initialization and chaining.
 import copy
 from typing import Dict, Any, Optional
 
-from ..types import Backends
+from ..types import Backends, EventTypes
+from .register_event import register_event
+from .context_fields import set_field
 
 
 def save_config_sections(
@@ -170,3 +172,42 @@ def inherit_context(
     }
 
     return inherited_context
+
+
+def prepare_initial_context(
+    execution_id: str,
+    initial_context: Dict[str, Any],
+    backends: Backends,
+    inherit_context_from_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Prepare initial context, optionally inheriting from another execution.
+
+    Args:
+        execution_id: Target execution ID
+        initial_context: Initial context data provided by user
+        backends: Backend services
+        inherit_context_from_id: Optional source execution ID to inherit from
+
+    Returns:
+        Prepared context dictionary
+    """
+    if inherit_context_from_id:
+        register_event(
+            backends, execution_id, EventTypes.CONTEXT_INHERITANCE_START,
+        )
+        context = inherit_context(inherit_context_from_id, backends)
+        if initial_context:
+            register_event(
+                backends, execution_id, EventTypes.CONTEXT_MERGE,
+                {"fields": list(initial_context.keys())}
+            )
+            for field, value in initial_context.items():
+                set_field(context, field, value)
+    else:
+        context = {
+            k: [v] if not k.startswith("__") else v
+            for k, v in initial_context.items()
+        }
+
+    return context

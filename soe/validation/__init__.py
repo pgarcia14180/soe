@@ -6,13 +6,19 @@ Two types of validation:
 2. operational.py - Validates runtime state before node execution (fail-fast)
 """
 
-from .config import validate_config, validate_workflow, validate_orchestrate_params
+from .config import (
+    validate_config,
+    validate_workflow,
+    validate_orchestrate_params,
+    validate_initial_workflow,
+)
 from .operational import validate_operational, OperationalValidationError
 
 __all__ = [
     "validate_config",
     "validate_workflow",
     "validate_orchestrate_params",
+    "validate_initial_workflow",
     "validate_operational",
     "OperationalValidationError",
 ]
